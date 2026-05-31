@@ -40,18 +40,9 @@ struct ContentView: View {
     }
 }
 
-#Preview {
+#Preview("App") {
+    let previewData = PreviewData()
+
     ContentView()
-        .modelContainer(
-            for: [
-                Recipe.self,
-                RecipeIngredient.self,
-                Ingredient.self,
-                IngredientCategory.self,
-                MeasurementUnit.self,
-                WeekPlan.self,
-                PlannedMeal.self,
-            ],
-            inMemory: true
-        )
+        .modelContainer(previewData.container)
 }

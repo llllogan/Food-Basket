@@ -127,3 +127,12 @@ extension UIImage {
         }
     }
 }
+
+#Preview("Recipe Thumbnail") {
+    RecipeThumbnailView(photoData: nil)
+        .padding()
+}
+
+#Preview("Recipe Hero Image") {
+    RecipeHeroImageView(photoData: nil, takePhoto: {})
+}

@@ -164,3 +164,21 @@ private extension PlannedMeal {
         return "\(quantity)x"
     }
 }
+
+#Preview("This Week") {
+    let previewData = PreviewData()
+
+    WeekPlanView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Add Meal") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        AddPlannedMealView(
+            weekStarting: Calendar.current.startOfWeek(containing: Date())
+        )
+    }
+    .modelContainer(previewData.container)
+}

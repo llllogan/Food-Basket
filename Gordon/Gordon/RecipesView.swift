@@ -133,11 +133,6 @@ struct RecipeDetailView: View {
                     }
                 }
 
-                Button {
-                    showingAddIngredient = true
-                } label: {
-                    Label("Add Ingredient", systemImage: "plus")
-                }
             }
             .listRowBackground(Color.clear)
 
@@ -158,6 +153,7 @@ struct RecipeDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+
                 Button {
                     takePhoto()
                 } label: {
@@ -168,6 +164,12 @@ struct RecipeDetailView: View {
                     showingEditRecipe = true
                 } label: {
                     Label("Edit Recipe", systemImage: "pencil")
+                }
+                
+                Button {
+                    showingAddIngredient = true
+                } label: {
+                    Label("Add Ingredient", systemImage: "plus")
                 }
             }
         }
@@ -406,4 +408,47 @@ private extension RecipeIngredient {
         }
         return "\(amount) \(symbol)"
     }
+}
+
+#Preview("Recipes") {
+    let previewData = PreviewData()
+
+    RecipesView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Recipe Detail") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        RecipeDetailView(recipe: previewData.recipe)
+    }
+    .modelContainer(previewData.container)
+}
+
+#Preview("New Recipe") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        RecipeFormView()
+    }
+    .modelContainer(previewData.container)
+}
+
+#Preview("Edit Recipe") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        RecipeFormView(recipe: previewData.recipe)
+    }
+    .modelContainer(previewData.container)
+}
+
+#Preview("Add Ingredient to Recipe") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        AddIngredientToRecipeView(recipe: previewData.recipe)
+    }
+    .modelContainer(previewData.container)
 }

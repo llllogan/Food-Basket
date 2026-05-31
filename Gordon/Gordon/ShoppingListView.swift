@@ -175,3 +175,30 @@ extension ShoppingListLine {
         return "\(formattedQuantity) \(unitSymbol)"
     }
 }
+
+#Preview("Shopping List") {
+    let previewData = PreviewData()
+
+    ShoppingListView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Reminders List Picker") {
+    NavigationStack {
+        ReminderListPickerView(
+            lists: [
+                ReminderListOption(
+                    id: "groceries",
+                    title: "Groceries",
+                    sourceTitle: "iCloud"
+                ),
+                ReminderListOption(
+                    id: "shared",
+                    title: "Shared Shopping",
+                    sourceTitle: "iCloud"
+                ),
+            ],
+            onSelect: { _ in }
+        )
+    }
+}

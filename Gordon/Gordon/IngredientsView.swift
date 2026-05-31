@@ -89,17 +89,14 @@ struct IngredientDetailView: View {
                 .listRowBackground(Color.clear)
             }
 
-            Section("Ingredient") {
+            Section {
                 TextField("Name", text: $ingredient.name)
                     .onChange(of: ingredient.name) {
                         ingredient.normalizedName = ingredient.name.normalizedLookupValue
                     }
-
-                TextField("Default quantity", value: $ingredient.defaultQuantity, format: .number)
-                    .keyboardType(.decimalPad)
             }
 
-            Section("Category") {
+            Section {
                 Picker("Category", selection: $ingredient.category) {
                     Text("None").tag(nil as IngredientCategory?)
 
@@ -107,9 +104,6 @@ struct IngredientDetailView: View {
                         Text(category.name).tag(category as IngredientCategory?)
                     }
                 }
-            }
-
-            Section("Unit") {
                 Picker("Unit", selection: $ingredient.unit) {
                     Text("None").tag(nil as MeasurementUnit?)
 
@@ -117,6 +111,12 @@ struct IngredientDetailView: View {
                         Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
                     }
                 }
+                TextField("Default quantity", value: $ingredient.defaultQuantity, format: .number)
+                    .keyboardType(.decimalPad)
+            }header: {
+                Text("Details")
+            } footer: {
+                Text("This count will be pre-filled when adding this ingredient to a recipe.")
             }
         }
         .navigationTitle(ingredient.name)
@@ -352,4 +352,39 @@ private extension Ingredient {
         let categoryDescription = category?.name ?? "No category"
         return "\(quantity) \(unitDescription) | \(categoryDescription)"
     }
+}
+
+#Preview("Ingredients") {
+    let previewData = PreviewData()
+
+    IngredientsView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Ingredient Detail") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        IngredientDetailView(ingredient: previewData.ingredient)
+    }
+    .modelContainer(previewData.container)
+}
+
+#Preview("New Ingredient") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        IngredientFormView()
+    }
+    .modelContainer(previewData.container)
+}
+
+#Preview("Ingredient Detail Image") {
+    IngredientDetailImageView(photoData: nil)
+        .padding()
+}
+
+#Preview("Ingredient Thumbnail") {
+    IngredientThumbnailView(photoData: nil)
+        .padding()
 }
