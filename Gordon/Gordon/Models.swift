@@ -13,6 +13,7 @@ final class Recipe {
     @Attribute(.unique) var id: UUID
     var name: String
     var method: String
+    @Attribute(.externalStorage) var photoData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \RecipeIngredient.recipe)
     var ingredientLines: [RecipeIngredient]
@@ -24,12 +25,14 @@ final class Recipe {
         id: UUID = UUID(),
         name: String,
         method: String = "",
+        photoData: Data? = nil,
         ingredientLines: [RecipeIngredient] = [],
         plannedMeals: [PlannedMeal] = []
     ) {
         self.id = id
         self.name = name
         self.method = method
+        self.photoData = photoData
         self.ingredientLines = ingredientLines
         self.plannedMeals = plannedMeals
     }

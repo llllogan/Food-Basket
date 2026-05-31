@@ -47,6 +47,7 @@ struct WeekPlanView: View {
                     Text("Week of \(weekStarting.formatted(date: .abbreviated, time: .omitted))")
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("This Week")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

@@ -50,6 +50,7 @@ struct ShoppingListView: View {
                     }
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("Shopping List")
         }
     }

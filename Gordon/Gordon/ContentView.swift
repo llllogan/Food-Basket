@@ -33,6 +33,7 @@ struct ContentView: View {
                     Label("Ingredients", systemImage: "carrot")
                 }
         }
+        .dismissKeyboardOnTapOutsideTextInputs()
         .task {
             SeedData.ensureDefaults(in: modelContext)
         }

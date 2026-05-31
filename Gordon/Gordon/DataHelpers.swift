@@ -34,6 +34,22 @@ enum SeedData {
             ("Litre", "L"),
             ("Teaspoon", "tsp"),
             ("Tablespoon", "tbsp"),
+            ("Cup", "cup"),
+            ("Pinch", "pinch"),
+            ("Dash", "dash"),
+            ("Punnet", "punnet"),
+            ("Fillet", "fillet"),
+            ("Clove", "clove"),
+            ("Bunch", "bunch"),
+            ("Head", "head"),
+            ("Stalk", "stalk"),
+            ("Sprig", "sprig"),
+            ("Slice", "slice"),
+            ("Piece", "piece"),
+            ("Packet", "packet"),
+            ("Can", "can"),
+            ("Jar", "jar"),
+            ("Bottle", "bottle"),
         ]
 
         for (name, symbol) in defaultUnits

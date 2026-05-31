@@ -25,16 +25,21 @@ struct RecipesView: View {
                     NavigationLink {
                         RecipeDetailView(recipe: recipe)
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(recipe.name)
-                            Text("\(recipe.ingredientLines.count) ingredients")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            RecipeThumbnailView(photoData: recipe.photoData)
+
+                            VStack(alignment: .leading) {
+                                Text(recipe.name)
+                                Text("\(recipe.ingredientLines.count) ingredients")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
                 .onDelete(perform: deleteRecipes)
             }
+            .listStyle(.plain)
             .navigationTitle("Recipes")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -65,48 +70,81 @@ struct RecipeDetailView: View {
     let recipe: Recipe
     @State private var showingAddIngredient = false
     @State private var showingEditRecipe = false
+    @State private var showingCamera = false
+    @State private var showingCameraUnavailable = false
 
     private var ingredientLines: [RecipeIngredient] {
         recipe.ingredientLines.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
-        List {
-            Section("Ingredients") {
-                if ingredientLines.isEmpty {
-                    Text("No ingredients yet.")
-                        .foregroundStyle(.secondary)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                RecipeHeroImageView(photoData: recipe.photoData, takePhoto: takePhoto)
 
-                ForEach(ingredientLines) { line in
-                    HStack {
-                        Text(line.ingredient?.name ?? "Deleted ingredient")
-                        Spacer()
-                        Text(line.formattedQuantity)
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 24) {
+                    Text(recipe.name)
+                        .font(.largeTitle.bold())
+
+                    RecipeDetailSection(title: "Ingredients") {
+                        if ingredientLines.isEmpty {
+                            Text("No ingredients yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(Array(ingredientLines.enumerated()), id: \.element.id) { index, line in
+                                if index > 0 {
+                                    Divider()
+                                }
+
+                                HStack {
+                                    Text(line.ingredient?.name ?? "Deleted ingredient")
+                                    Spacer()
+                                    Text(line.formattedQuantity)
+                                        .foregroundStyle(.secondary)
+
+                                    Button(role: .destructive) {
+                                        modelContext.delete(line)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Button {
+                            showingAddIngredient = true
+                        } label: {
+                            Label("Add Ingredient", systemImage: "plus")
+                        }
+                    }
+
+                    RecipeDetailSection(title: "Method") {
+                        Text(recipe.method.isEmpty ? "No method added." : recipe.method)
+                            .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
                     }
                 }
-                .onDelete(perform: deleteIngredientLines)
-            }
-
-            Section("Method") {
-                Text(recipe.method.isEmpty ? "No method added." : recipe.method)
-                    .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
+                .padding()
             }
         }
-        .navigationTitle(recipe.name)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .ignoresSafeArea(edges: .top)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    takePhoto()
+                } label: {
+                    Label("Take Meal Photo", systemImage: "camera")
+                }
+
                 Button {
                     showingEditRecipe = true
                 } label: {
                     Label("Edit Recipe", systemImage: "pencil")
-                }
-
-                Button {
-                    showingAddIngredient = true
-                } label: {
-                    Label("Add Ingredient", systemImage: "plus")
                 }
             }
         }
@@ -120,12 +158,44 @@ struct RecipeDetailView: View {
                 AddIngredientToRecipeView(recipe: recipe)
             }
         }
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraPicker { image in
+                recipe.photoData = image.recipePhotoData
+                try? modelContext.save()
+            }
+            .ignoresSafeArea()
+        }
+        .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("A camera is not available on this device.")
+        }
     }
 
-    private func deleteIngredientLines(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(ingredientLines[index])
+    private func takePhoto() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showingCameraUnavailable = true
+            return
         }
+
+        showingCamera = true
+    }
+}
+
+private struct RecipeDetailSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

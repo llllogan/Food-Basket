@@ -33,6 +33,7 @@ struct IngredientsView: View {
                     }
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("Ingredients")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
