@@ -20,12 +20,7 @@ struct ContentView: View {
 
             WeekPlanView()
                 .tabItem {
-                    Label("This Week", systemImage: "calendar")
-                }
-
-            ShoppingListView()
-                .tabItem {
-                    Label("Shopping", systemImage: "cart")
+                    Label("This Week", systemImage: "refrigerator")
                 }
 
             IngredientsView()

@@ -132,6 +132,7 @@ struct ShoppingListLine: Identifiable {
     let ingredientName: String
     let categoryName: String
     let unitSymbol: String
+    let photoData: Data?
     var quantity: Double
 
     var id: String {
@@ -165,6 +166,7 @@ struct ShoppingListLine: Identifiable {
                         ingredientName: ingredient.name,
                         categoryName: ingredient.category?.name ?? "Other",
                         unitSymbol: unitSymbol,
+                        photoData: ingredient.photoData,
                         quantity: quantity
                     )
                 }
