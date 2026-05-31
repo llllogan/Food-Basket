@@ -16,8 +16,10 @@ struct WeekPlanView: View {
     @State private var remindersExporter = RemindersExporter()
     @State private var reminderLists: [ReminderListOption] = []
     @State private var showingReminderListPicker = false
-    @State private var isPreparingReminderExport = false
+    @State private var isUpdatingReminders = false
     @State private var exportAlert: ReminderExportAlert?
+    @AppStorage("lastRemindersListID") private var lastRemindersListID = ""
+    @AppStorage("lastRemindersListName") private var lastRemindersListName = ""
 
     private let weekStarting = Calendar.current.startOfWeek(containing: Date())
 
@@ -43,6 +45,18 @@ struct WeekPlanView: View {
         Set(shoppingListLines.map(\.categoryName)).sorted {
             $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
         }
+    }
+
+    private var rememberedReminderList: ReminderListOption? {
+        guard !lastRemindersListID.isEmpty, !lastRemindersListName.isEmpty else {
+            return nil
+        }
+
+        return ReminderListOption(
+            id: lastRemindersListID,
+            title: lastRemindersListName,
+            sourceTitle: ""
+        )
     }
 
     var body: some View {
@@ -106,16 +120,47 @@ struct WeekPlanView: View {
                 }
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        prepareReminderExport()
+                    Menu {
+                        
+                        Button {
+                            prepareReminderListSelection()
+                        } label: {
+                            Label("Add to Reminders", systemImage: "list.bullet")
+                        }
+                        .disabled(shoppingListLines.isEmpty)
+                        
+                        if let rememberedReminderList {
+                            
+                            Divider()
+
+                            Button {
+                                addReminders(to: rememberedReminderList)
+                            } label: {
+                                Label("Add to \(rememberedReminderList.title)", systemImage: "plus")
+                            }
+                            .disabled(shoppingListLines.isEmpty)
+                            
+                            Button(role: .destructive) {
+                                clearReminders(from: rememberedReminderList)
+                            } label: {
+                                Text("Clear \(rememberedReminderList.title)")
+                                Text("remove items automatically added")
+                                Image(systemName: "trash")
+                            }
+                        }
+
+                        
                     } label: {
-                        if isPreparingReminderExport {
+                        if isUpdatingReminders {
                             ProgressView()
                         } else {
-                            Label("Add to Reminders List", systemImage: "checklist")
+                            Label("Update Reminders", systemImage: "checklist")
                         }
                     }
-                    .disabled(shoppingListLines.isEmpty || isPreparingReminderExport)
+                    .disabled(
+                        isUpdatingReminders ||
+                        (rememberedReminderList == nil && shoppingListLines.isEmpty)
+                    )
 
                     Button {
                         showingAddMeal = true
@@ -132,7 +177,7 @@ struct WeekPlanView: View {
             .sheet(isPresented: $showingReminderListPicker) {
                 NavigationStack {
                     ReminderListPickerView(lists: reminderLists) { list in
-                        exportReminders(to: list)
+                        addReminders(to: list)
                     }
                 }
             }
@@ -153,12 +198,12 @@ struct WeekPlanView: View {
         }
     }
 
-    private func prepareReminderExport() {
-        isPreparingReminderExport = true
+    private func prepareReminderListSelection() {
+        isUpdatingReminders = true
 
         Task { @MainActor in
             defer {
-                isPreparingReminderExport = false
+                isUpdatingReminders = false
             }
 
             do {
@@ -170,26 +215,74 @@ struct WeekPlanView: View {
 
                 showingReminderListPicker = true
             } catch {
-                showExportError(error)
+                showRemindersError(error)
             }
         }
     }
 
-    private func exportReminders(to list: ReminderListOption) {
-        do {
-            try remindersExporter.export(shoppingListLines, to: list)
-            exportAlert = ReminderExportAlert(
-                title: "Shopping List Exported",
-                message: "\(shoppingListLines.count) items were added to \(list.title)."
-            )
-        } catch {
-            showExportError(error)
+    private func addReminders(to list: ReminderListOption) {
+        isUpdatingReminders = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingReminders = false
+            }
+
+            do {
+                try await remindersExporter.export(shoppingListLines, to: list)
+                remember(list)
+                exportAlert = ReminderExportAlert(
+                    title: "Shopping List Added",
+                    message: "\(shoppingListLines.count) items were added to \(list.title)."
+                )
+            } catch {
+                showRemindersError(error, for: list)
+            }
         }
     }
 
-    private func showExportError(_ error: Error) {
+    private func clearReminders(from list: ReminderListOption) {
+        isUpdatingReminders = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingReminders = false
+            }
+
+            do {
+                let removedCount = try await remindersExporter.clearAutomaticallyAddedReminders(
+                    from: list
+                )
+                exportAlert = ReminderExportAlert(
+                    title: "Shopping List Cleared",
+                    message: "\(removedCount) automatically added items were removed from \(list.title)."
+                )
+            } catch {
+                showRemindersError(error, for: list)
+            }
+        }
+    }
+
+    private func remember(_ list: ReminderListOption) {
+        lastRemindersListID = list.id
+        lastRemindersListName = list.title
+    }
+
+    private func forgetRememberedList(ifMatching list: ReminderListOption) {
+        guard list.id == lastRemindersListID else { return }
+        lastRemindersListID = ""
+        lastRemindersListName = ""
+    }
+
+    private func showRemindersError(_ error: Error, for list: ReminderListOption? = nil) {
+        if let list,
+           let remindersError = error as? RemindersExportError,
+           remindersError == .listUnavailable {
+            forgetRememberedList(ifMatching: list)
+        }
+
         exportAlert = ReminderExportAlert(
-            title: "Unable to Export",
+            title: "Unable to Update Reminders",
             message: error.localizedDescription
         )
     }

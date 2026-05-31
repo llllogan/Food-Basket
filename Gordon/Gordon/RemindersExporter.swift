@@ -10,6 +10,8 @@ import Foundation
 
 @MainActor
 final class RemindersExporter {
+    private static let automaticallyAddedTag = "#added_automatically"
+
     private let eventStore = EKEventStore()
 
     func availableLists() async throws -> [ReminderListOption] {
@@ -32,7 +34,9 @@ final class RemindersExporter {
             }
     }
 
-    func export(_ lines: [ShoppingListLine], to list: ReminderListOption) throws {
+    func export(_ lines: [ShoppingListLine], to list: ReminderListOption) async throws {
+        try await requestAccessIfNeeded()
+
         guard let calendar = eventStore.calendar(withIdentifier: list.id) else {
             throw RemindersExportError.listUnavailable
         }
@@ -41,10 +45,40 @@ final class RemindersExporter {
             let reminder = EKReminder(eventStore: eventStore)
             reminder.calendar = calendar
             reminder.title = "\(line.ingredientName) - \(line.formattedAmount)"
+            reminder.notes = Self.automaticallyAddedTag
             try eventStore.save(reminder, commit: false)
         }
 
         try eventStore.commit()
+    }
+
+    func clearAutomaticallyAddedReminders(from list: ReminderListOption) async throws -> Int {
+        try await requestAccessIfNeeded()
+
+        guard let calendar = eventStore.calendar(withIdentifier: list.id) else {
+            throw RemindersExportError.listUnavailable
+        }
+
+        let predicate = eventStore.predicateForReminders(in: [calendar])
+        let reminders = await withCheckedContinuation {
+            (continuation: CheckedContinuation<[EKReminder], Never>) in
+            eventStore.fetchReminders(matching: predicate) { reminders in
+                continuation.resume(returning: reminders ?? [])
+            }
+        }
+        let automaticallyAddedReminders = reminders.filter {
+            $0.notes == Self.automaticallyAddedTag
+        }
+
+        for reminder in automaticallyAddedReminders {
+            try eventStore.remove(reminder, commit: false)
+        }
+
+        if !automaticallyAddedReminders.isEmpty {
+            try eventStore.commit()
+        }
+
+        return automaticallyAddedReminders.count
     }
 
     private func requestAccessIfNeeded() async throws {
@@ -79,7 +113,7 @@ struct ReminderListOption: Identifiable {
     let sourceTitle: String
 }
 
-enum RemindersExportError: LocalizedError {
+enum RemindersExportError: LocalizedError, Equatable {
     case accessDenied
     case listUnavailable
     case noWritableLists
@@ -87,7 +121,7 @@ enum RemindersExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .accessDenied:
-            "Allow Reminders access in Settings to export your shopping list."
+            "Allow Reminders access in Settings to update your shopping list."
         case .listUnavailable:
             "The selected Reminders list is no longer available."
         case .noWritableLists:
