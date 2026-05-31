@@ -67,6 +67,7 @@ final class Ingredient {
     var name: String
     @Attribute(.unique) var normalizedName: String
     var defaultQuantity: Double
+    @Attribute(.externalStorage) var photoData: Data?
     var category: IngredientCategory?
     var unit: MeasurementUnit?
 
@@ -77,6 +78,7 @@ final class Ingredient {
         id: UUID = UUID(),
         name: String,
         defaultQuantity: Double = 1,
+        photoData: Data? = nil,
         category: IngredientCategory? = nil,
         unit: MeasurementUnit? = nil,
         recipeLines: [RecipeIngredient] = []
@@ -85,6 +87,7 @@ final class Ingredient {
         self.name = name
         self.normalizedName = name.normalizedLookupValue
         self.defaultQuantity = defaultQuantity
+        self.photoData = photoData
         self.category = category
         self.unit = unit
         self.recipeLines = recipeLines

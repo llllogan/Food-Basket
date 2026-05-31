@@ -59,8 +59,14 @@ struct RecipesView: View {
     }
 
     private func deleteRecipes(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(recipes[index])
+        let deletedRecipes = offsets.map { recipes[$0] }
+
+        for recipe in deletedRecipes {
+            for plannedMeal in recipe.plannedMeals {
+                modelContext.delete(plannedMeal)
+            }
+
+            modelContext.delete(recipe)
         }
     }
 }
@@ -72,64 +78,81 @@ struct RecipeDetailView: View {
     @State private var showingEditRecipe = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
+    @State private var showingCountEditor = false
+    @State private var editedIngredientLine: RecipeIngredient?
+    @State private var editedQuantity = ""
 
     private var ingredientLines: [RecipeIngredient] {
         recipe.ingredientLines.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                RecipeHeroImageView(photoData: recipe.photoData, takePhoto: takePhoto)
+        List {
+            RecipeHeroImageView(photoData: recipe.photoData, takePhoto: takePhoto)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
-                VStack(alignment: .leading, spacing: 24) {
-                    Text(recipe.name)
-                        .font(.largeTitle.bold())
+            Section {
+                Text(recipe.name)
+                    .font(.largeTitle.bold())
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
 
-                    RecipeDetailSection(title: "Ingredients") {
-                        if ingredientLines.isEmpty {
-                            Text("No ingredients yet.")
+            Section("Ingredients") {
+                if ingredientLines.isEmpty {
+                    Text("No ingredients yet.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(ingredientLines) { line in
+                        HStack(spacing: 12) {
+                            IngredientThumbnailView(photoData: line.ingredient?.photoData)
+
+                            Text(line.ingredient?.name ?? "Deleted ingredient")
+
+                            Spacer()
+
+                            Text(line.formattedQuantity)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(Array(ingredientLines.enumerated()), id: \.element.id) { index, line in
-                                if index > 0 {
-                                    Divider()
-                                }
-
-                                HStack {
-                                    Text(line.ingredient?.name ?? "Deleted ingredient")
-                                    Spacer()
-                                    Text(line.formattedQuantity)
-                                        .foregroundStyle(.secondary)
-
-                                    Button(role: .destructive) {
-                                        modelContext.delete(line)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.borderless)
-                                }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                modelContext.delete(line)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
+
+                            Button {
+                                editCount(for: line)
+                            } label: {
+                                Label("Count", systemImage: "number")
+                            }
+                            .tint(.blue)
                         }
-
-                        Divider()
-
-                        Button {
-                            showingAddIngredient = true
-                        } label: {
-                            Label("Add Ingredient", systemImage: "plus")
-                        }
-                    }
-
-                    RecipeDetailSection(title: "Method") {
-                        Text(recipe.method.isEmpty ? "No method added." : recipe.method)
-                            .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
                     }
                 }
-                .padding()
+
+                Button {
+                    showingAddIngredient = true
+                } label: {
+                    Label("Add Ingredient", systemImage: "plus")
+                }
             }
+            .listRowBackground(Color.clear)
+
+            Section("Method") {
+                Text(recipe.method.isEmpty ? "No method added." : recipe.method)
+                    .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
+            }
+            .listRowBackground(Color.clear)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+        }
         .ignoresSafeArea(edges: .top)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -170,6 +193,39 @@ struct RecipeDetailView: View {
         } message: {
             Text("A camera is not available on this device.")
         }
+        .alert("Change Count", isPresented: $showingCountEditor) {
+            TextField("Count", text: $editedQuantity)
+                .keyboardType(.decimalPad)
+
+            Button("Cancel", role: .cancel) {}
+
+            Button("Save") {
+                saveEditedCount()
+            }
+            .disabled(editedQuantityValue == nil)
+        } message: {
+            Text("Enter the amount needed for this recipe.")
+        }
+    }
+
+    private var editedQuantityValue: Double? {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+
+        let value = formatter.number(from: editedQuantity)?.doubleValue ?? Double(editedQuantity)
+        guard let value, value > 0 else { return nil }
+        return value
+    }
+
+    private func editCount(for line: RecipeIngredient) {
+        editedIngredientLine = line
+        editedQuantity = line.quantity.formatted(.number.precision(.fractionLength(0...2)))
+        showingCountEditor = true
+    }
+
+    private func saveEditedCount() {
+        guard let editedIngredientLine, let editedQuantityValue else { return }
+        editedIngredientLine.quantity = editedQuantityValue
     }
 
     private func takePhoto() {
@@ -179,23 +235,6 @@ struct RecipeDetailView: View {
         }
 
         showingCamera = true
-    }
-}
-
-private struct RecipeDetailSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
-
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

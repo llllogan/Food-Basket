@@ -40,7 +40,7 @@ struct RecipeHeroImageView: View {
             if let image = photoData.flatMap(UIImage.init(data:)) {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
             } else {
                 ZStack {
                     Color(uiColor: .secondarySystemBackground)
@@ -61,11 +61,10 @@ struct RecipeHeroImageView: View {
                         .buttonStyle(.borderedProminent)
                     }
                 }
+                .frame(height: 360)
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 360)
-        .clipped()
     }
 }
 

@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 
 struct IngredientsView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
     @State private var showingAddIngredient = false
 
@@ -24,14 +25,19 @@ struct IngredientsView: View {
                     NavigationLink {
                         IngredientDetailView(ingredient: ingredient)
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(ingredient.name)
-                            Text(ingredient.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            IngredientThumbnailView(photoData: ingredient.photoData)
+
+                            VStack(alignment: .leading) {
+                                Text(ingredient.name)
+                                Text(ingredient.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
+                .onDelete(perform: deleteIngredients)
             }
             .listStyle(.plain)
             .navigationTitle("Ingredients")
@@ -51,15 +57,38 @@ struct IngredientsView: View {
             }
         }
     }
+
+    private func deleteIngredients(at offsets: IndexSet) {
+        let deletedIngredients = offsets.map { ingredients[$0] }
+
+        for ingredient in deletedIngredients {
+            for recipeLine in ingredient.recipeLines {
+                modelContext.delete(recipeLine)
+            }
+
+            modelContext.delete(ingredient)
+        }
+    }
 }
 
 struct IngredientDetailView: View {
+    @Environment(\.modelContext) private var modelContext
     @Bindable var ingredient: Ingredient
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
     @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
+    @State private var isGeneratingImage = false
 
     var body: some View {
         Form {
+            Section {
+                HStack {
+                    Spacer()
+                    IngredientDetailImageView(photoData: ingredient.photoData)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+            }
+
             Section("Ingredient") {
                 TextField("Name", text: $ingredient.name)
                     .onChange(of: ingredient.name) {
@@ -91,6 +120,39 @@ struct IngredientDetailView: View {
             }
         }
         .navigationTitle(ingredient.name)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    regenerateImage()
+                } label: {
+                    if isGeneratingImage {
+                        ProgressView()
+                    } else {
+                        Label("Regenerate Image", systemImage: "wand.and.sparkles")
+                    }
+                }
+                .disabled(isGeneratingImage)
+            }
+        }
+    }
+
+    private func regenerateImage() {
+        isGeneratingImage = true
+
+        Task { @MainActor in
+            defer {
+                isGeneratingImage = false
+            }
+
+            guard let photoData = await IngredientImageGenerator.generateImageData(
+                for: ingredient.name
+            ) else {
+                return
+            }
+
+            ingredient.photoData = photoData
+            try? modelContext.save()
+        }
     }
 }
 
@@ -209,6 +271,7 @@ struct IngredientFormView: View {
             unit: unit
         )
         modelContext.insert(ingredient)
+        generateImage(for: ingredient)
         onSave?(ingredient)
         dismiss()
     }
@@ -216,6 +279,69 @@ struct IngredientFormView: View {
     private func selectDefaultUnitIfNeeded() {
         guard selectedUnitID == nil else { return }
         selectedUnitID = units.first(where: { $0.normalizedName == "each" })?.id
+    }
+
+    private func generateImage(for ingredient: Ingredient) {
+        Task { @MainActor in
+            guard let photoData = await IngredientImageGenerator.generateImageData(
+                for: ingredient.name
+            ) else {
+                return
+            }
+
+            ingredient.photoData = photoData
+            try? modelContext.save()
+        }
+    }
+}
+
+private struct IngredientDetailImageView: View {
+    let photoData: Data?
+
+    var body: some View {
+        Group {
+            if let image = photoData.flatMap(UIImage.init(data:)) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                ZStack {
+                    Color(uiColor: .secondarySystemBackground)
+
+                    Image(systemName: "carrot")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                }
+                .aspectRatio(1, contentMode: .fit)
+            }
+        }
+        .containerRelativeFrame(.horizontal) { width, _ in
+            width / 3
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
+struct IngredientThumbnailView: View {
+    let photoData: Data?
+
+    var body: some View {
+        Group {
+            if let image = photoData.flatMap(UIImage.init(data:)) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Color(uiColor: .secondarySystemBackground)
+
+                    Image(systemName: "carrot")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .frame(width: 58, height: 58)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
 

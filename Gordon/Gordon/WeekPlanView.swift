@@ -74,8 +74,10 @@ struct WeekPlanView: View {
     }
 
     private func deleteMeals(at offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(plannedMeals[index])
+        let deletedMeals = offsets.map { plannedMeals[$0] }
+
+        for meal in deletedMeals {
+            modelContext.delete(meal)
         }
     }
 }
