@@ -5,29 +5,17 @@
 //  Created by Logan Janssen | Codify on 31/5/2026.
 //
 
-import SwiftUI
+import AppIntents
 import SwiftData
+import SwiftUI
 
 @main
 struct GordonApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Recipe.self,
-            RecipeIngredient.self,
-            Ingredient.self,
-            IngredientCategory.self,
-            MeasurementUnit.self,
-            WeekPlan.self,
-            PlannedMeal.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    let sharedModelContainer = GordonModelContainer.shared
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    init() {
+        GordonShortcuts.updateAppShortcutParameters()
+    }
 
     var body: some Scene {
         WindowGroup {

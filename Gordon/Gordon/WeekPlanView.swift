@@ -5,8 +5,9 @@
 //  Created by Codex on 31/5/2026.
 //
 
-import SwiftUI
+import AppIntents
 import SwiftData
+import SwiftUI
 
 struct WeekPlanView: View {
     @Environment(\.modelContext) private var modelContext
@@ -18,8 +19,9 @@ struct WeekPlanView: View {
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
     @State private var exportAlert: ReminderExportAlert?
-    @AppStorage("lastRemindersListID") private var lastRemindersListID = ""
-    @AppStorage("lastRemindersListName") private var lastRemindersListName = ""
+    @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
+    @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
+    @AppStorage("isDinnerPlanSiriTipVisible") private var isDinnerPlanSiriTipVisible = true
 
     private let weekStarting = Calendar.current.startOfWeek(containing: Date())
 
@@ -62,6 +64,14 @@ struct WeekPlanView: View {
     var body: some View {
         NavigationStack {
             List {
+                if !showingIngredients {
+                    SiriTipView(
+                        intent: GetDinnerPlanIntent(),
+                        isVisible: $isDinnerPlanSiriTipVisible
+                    )
+                    .listRowSeparator(.hidden)
+                }
+
                 if showingIngredients {
                     if shoppingListLines.isEmpty {
                         Text("Add meals to this week to build your shopping list.")
