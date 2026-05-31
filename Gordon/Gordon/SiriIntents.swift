@@ -8,6 +8,7 @@
 import AppIntents
 import Foundation
 import SwiftData
+import SwiftUI
 
 struct GetDinnerPlanIntent: AppIntent {
     static let title: LocalizedStringResource = "Get This Week's Dinner Plan"
@@ -15,9 +16,11 @@ struct GetDinnerPlanIntent: AppIntent {
     static let supportedModes: IntentModes = .background
 
     @MainActor
-    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
-        let summary = try CurrentWeekPlanReader().dinnerSummary()
-        return .result(value: summary, dialog: "\(summary)")
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
+        let dinnerPlan = try CurrentWeekPlanReader().dinnerPlan()
+        return .result(value: dinnerPlan.summary, dialog: "\(dinnerPlan.summary)") {
+            DinnerPlanSnippetView(recipePhotoData: dinnerPlan.recipePhotoData)
+        }
     }
 }
 
@@ -29,14 +32,16 @@ struct AddGroceriesToRememberedRemindersListIntent: AppIntent {
     static let supportedModes: IntentModes = .background
 
     @MainActor
-    func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
+    func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog & ShowsSnippetView {
         let lines = try CurrentWeekPlanReader().shoppingListLines()
 
         guard !lines.isEmpty else {
             return .result(
                 value: 0,
                 dialog: "There aren't any groceries planned for this week."
-            )
+            ) {
+                GroceryExportSnippetView(lines: [])
+            }
         }
 
         guard let rememberedList = ReminderListDefaults.rememberedList else {
@@ -47,7 +52,12 @@ struct AddGroceriesToRememberedRemindersListIntent: AppIntent {
         return .result(
             value: lines.count,
             dialog: "\(lines.count) grocery items were added to \(rememberedList.title)."
-        )
+        ) {
+            GroceryExportSnippetView(
+                listTitle: rememberedList.title,
+                lines: lines
+            )
+        }
     }
 }
 
@@ -86,17 +96,15 @@ private struct CurrentWeekPlanReader {
         modelContext = (modelContainer ?? GordonModelContainer.shared).mainContext
     }
 
-    func dinnerSummary() throws -> String {
-        let names = try currentPlan()?
+    func dinnerPlan() throws -> DinnerPlanResult {
+        let recipes = try currentPlan()?
             .plannedMeals
             .sorted { $0.sortOrder < $1.sortOrder }
-            .compactMap(\.recipe?.name) ?? []
-
-        guard !names.isEmpty else {
-            return "You don't have any dinners planned this week."
-        }
-
-        return "This week you have \(ListFormatter.localizedString(byJoining: names))."
+            .compactMap(\.recipe) ?? []
+        return DinnerPlanResult(
+            mealNames: recipes.map(\.name),
+            recipePhotoData: recipes.map(\.photoData)
+        )
     }
 
     func shoppingListLines() throws -> [ShoppingListLine] {
@@ -108,5 +116,18 @@ private struct CurrentWeekPlanReader {
         return try modelContext.fetch(FetchDescriptor<WeekPlan>()).first {
             Calendar.current.isDate($0.weekStarting, inSameDayAs: weekStarting)
         }
+    }
+}
+
+private struct DinnerPlanResult {
+    let mealNames: [String]
+    let recipePhotoData: [Data?]
+
+    var summary: String {
+        guard !mealNames.isEmpty else {
+            return "You don't have any dinners planned this week."
+        }
+
+        return "This week you have \(ListFormatter.localizedString(byJoining: mealNames))."
     }
 }
