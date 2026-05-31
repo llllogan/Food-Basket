@@ -12,6 +12,16 @@ struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @State private var showingAddRecipe = false
+    @State private var searchText = ""
+
+    private var filteredRecipes: [Recipe] {
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty else { return recipes }
+
+        return recipes.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -19,9 +29,12 @@ struct RecipesView: View {
                 if recipes.isEmpty {
                     Text("Add a recipe to get started.")
                         .foregroundStyle(.secondary)
+                } else if filteredRecipes.isEmpty {
+                    Text("No recipes found.")
+                        .foregroundStyle(.secondary)
                 }
 
-                ForEach(recipes) { recipe in
+                ForEach(filteredRecipes) { recipe in
                     NavigationLink {
                         RecipeDetailView(recipe: recipe)
                     } label: {
@@ -41,6 +54,11 @@ struct RecipesView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Recipes")
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search recipes"
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -59,7 +77,7 @@ struct RecipesView: View {
     }
 
     private func deleteRecipes(at offsets: IndexSet) {
-        let deletedRecipes = offsets.map { recipes[$0] }
+        let deletedRecipes = offsets.map { filteredRecipes[$0] }
 
         for recipe in deletedRecipes {
             for plannedMeal in recipe.plannedMeals {
@@ -304,46 +322,57 @@ struct RecipeFormView: View {
 
 struct AddIngredientToRecipeView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
 
     let recipe: Recipe
-    @State private var selectedIngredientID: UUID?
-    @State private var quantity = 1.0
+    @State private var createdIngredientForAmount: Ingredient?
+    @State private var showingCreatedIngredientAmount = false
     @State private var showingNewIngredient = false
+    @State private var searchText = ""
+
+    private var filteredIngredients: [Ingredient] {
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty else { return ingredients }
+
+        return ingredients.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
 
     var body: some View {
-        Form {
-            Section("Ingredient") {
+        List {
+            Section("Ingredients") {
                 if ingredients.isEmpty {
                     Text("Create your first ingredient.")
                         .foregroundStyle(.secondary)
+                } else if filteredIngredients.isEmpty {
+                    Text("No ingredients found.")
+                        .foregroundStyle(.secondary)
                 } else {
-                    Picker("Ingredient", selection: $selectedIngredientID) {
-                        Text("Select an ingredient").tag(nil as UUID?)
+                    ForEach(filteredIngredients) { ingredient in
+                        NavigationLink {
+                            AddIngredientAmountView(recipe: recipe, ingredient: ingredient) {
+                                dismiss()
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                IngredientThumbnailView(photoData: ingredient.photoData)
 
-                        ForEach(ingredients) { ingredient in
-                            Text(ingredient.name).tag(ingredient.id as UUID?)
+                                Text(ingredient.name)
+                                    .foregroundStyle(.primary)
+                            }
                         }
                     }
-                }
-
-                Button("Create New Ingredient") {
-                    showingNewIngredient = true
-                }
-            }
-
-            Section("Amount") {
-                TextField("Quantity", value: $quantity, format: .number)
-                    .keyboardType(.decimalPad)
-
-                if let selectedIngredient {
-                    LabeledContent("Unit", value: selectedIngredient.unit?.symbol ?? "No unit")
                 }
             }
         }
         .navigationTitle("Add Ingredient")
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Search ingredients"
+        )
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
@@ -351,52 +380,83 @@ struct AddIngredientToRecipeView: View {
                 }
             }
 
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Add") {
-                    addIngredient()
+            ToolbarItem(placement: .bottomBar) {
+                Button("Create New Ingredient") {
+                    createdIngredientForAmount = nil
+                    showingNewIngredient = true
                 }
-                .disabled(selectedIngredient == nil || quantity <= 0)
             }
         }
-        .task {
-            selectFirstIngredientIfNeeded()
+        .navigationDestination(isPresented: $showingCreatedIngredientAmount) {
+            if let createdIngredientForAmount {
+                AddIngredientAmountView(recipe: recipe, ingredient: createdIngredientForAmount) {
+                    dismiss()
+                }
+            }
         }
-        .onChange(of: selectedIngredientID) {
-            guard let selectedIngredient else { return }
-            quantity = selectedIngredient.defaultQuantity
-        }
-        .sheet(isPresented: $showingNewIngredient) {
+        .sheet(isPresented: $showingNewIngredient, onDismiss: {
+            guard createdIngredientForAmount != nil else { return }
+            showingCreatedIngredientAmount = true
+        }) {
             NavigationStack {
                 IngredientFormView { ingredient in
-                    selectedIngredientID = ingredient.id
-                    quantity = ingredient.defaultQuantity
+                    searchText = ""
+                    createdIngredientForAmount = ingredient
                     showingNewIngredient = false
                 }
             }
         }
     }
+}
 
-    private var selectedIngredient: Ingredient? {
-        ingredients.first { $0.id == selectedIngredientID }
+struct AddIngredientAmountView: View {
+    @Environment(\.modelContext) private var modelContext
+
+    let recipe: Recipe
+    let ingredient: Ingredient
+    let onAdd: () -> Void
+    @State private var quantity: Double
+
+    init(recipe: Recipe, ingredient: Ingredient, onAdd: @escaping () -> Void) {
+        self.recipe = recipe
+        self.ingredient = ingredient
+        self.onAdd = onAdd
+        _quantity = State(initialValue: ingredient.defaultQuantity)
     }
 
-    private func selectFirstIngredientIfNeeded() {
-        guard selectedIngredientID == nil, let ingredient = ingredients.first else { return }
-        selectedIngredientID = ingredient.id
-        quantity = ingredient.defaultQuantity
+    var body: some View {
+        Form {
+            Section("Ingredient") {
+                LabeledContent("Name", value: ingredient.name)
+                LabeledContent("Unit", value: ingredient.unit?.symbol ?? "No unit")
+            }
+
+            Section("Amount") {
+                TextField("Quantity", value: $quantity, format: .number)
+                    .keyboardType(.decimalPad)
+            }
+        }
+        .navigationTitle("Select Amount")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Add") {
+                    addIngredient()
+                }
+                .disabled(quantity <= 0)
+            }
+        }
     }
 
     private func addIngredient() {
-        guard let selectedIngredient else { return }
-
         let line = RecipeIngredient(
             quantity: quantity,
             sortOrder: recipe.ingredientLines.count,
-            ingredient: selectedIngredient
+            ingredient: ingredient
         )
         recipe.ingredientLines.append(line)
         modelContext.insert(line)
-        dismiss()
+        onAdd()
     }
 }
 

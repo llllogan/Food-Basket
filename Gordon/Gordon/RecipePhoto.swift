@@ -45,21 +45,9 @@ struct RecipeHeroImageView: View {
                 ZStack {
                     Color(uiColor: .secondarySystemBackground)
 
-                    VStack(spacing: 14) {
-                        Image(systemName: "fork.knife.circle")
-                            .font(.system(size: 64))
-                            .foregroundStyle(.secondary)
-
-                        Text("No meal photo yet")
-                            .font(.headline)
-
-                        Button {
-                            takePhoto()
-                        } label: {
-                            Label("Take Photo", systemImage: "camera")
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
+//                    Image(systemName: "fork.knife")
+//                        .font(.system(size: 30))
+//                        .foregroundStyle(.tertiary)
                 }
                 .frame(height: 360)
             }

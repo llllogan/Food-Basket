@@ -12,6 +12,16 @@ struct IngredientsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
     @State private var showingAddIngredient = false
+    @State private var searchText = ""
+
+    private var filteredIngredients: [Ingredient] {
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty else { return ingredients }
+
+        return ingredients.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -19,9 +29,12 @@ struct IngredientsView: View {
                 if ingredients.isEmpty {
                     Text("Add ingredients as you create recipes.")
                         .foregroundStyle(.secondary)
+                } else if filteredIngredients.isEmpty {
+                    Text("No ingredients found.")
+                        .foregroundStyle(.secondary)
                 }
 
-                ForEach(ingredients) { ingredient in
+                ForEach(filteredIngredients) { ingredient in
                     NavigationLink {
                         IngredientDetailView(ingredient: ingredient)
                     } label: {
@@ -41,6 +54,11 @@ struct IngredientsView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Ingredients")
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search ingredients"
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -59,7 +77,7 @@ struct IngredientsView: View {
     }
 
     private func deleteIngredients(at offsets: IndexSet) {
-        let deletedIngredients = offsets.map { ingredients[$0] }
+        let deletedIngredients = offsets.map { filteredIngredients[$0] }
 
         for ingredient in deletedIngredients {
             for recipeLine in ingredient.recipeLines {

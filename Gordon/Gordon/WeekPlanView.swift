@@ -298,64 +298,97 @@ struct WeekPlanView: View {
 
 struct AddPlannedMealView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
-    @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
 
     let weekStarting: Date
-    @State private var selectedRecipeID: UUID?
-    @State private var quantityMultiplier = 1.0
+    @State private var searchText = ""
+
+    private var filteredRecipes: [Recipe] {
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty else { return recipes }
+
+        return recipes.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
 
     var body: some View {
-        Form {
-            Section("Meal") {
+        List {
+            Section("Recipes") {
                 if recipes.isEmpty {
                     Text("Create a recipe before adding a meal.")
                         .foregroundStyle(.secondary)
+                } else if filteredRecipes.isEmpty {
+                    Text("No recipes found.")
+                        .foregroundStyle(.secondary)
                 } else {
-                    Picker("Recipe", selection: $selectedRecipeID) {
-                        Text("Select a recipe").tag(nil as UUID?)
+                    ForEach(filteredRecipes) { recipe in
+                        NavigationLink {
+                            AddPlannedMealAmountView(weekStarting: weekStarting, recipe: recipe) {
+                                dismiss()
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                RecipeThumbnailView(photoData: recipe.photoData)
 
-                        ForEach(recipes) { recipe in
-                            Text(recipe.name).tag(recipe.id as UUID?)
+                                Text(recipe.name)
+                                    .foregroundStyle(.primary)
+                            }
                         }
                     }
-
-                    TextField("Number of batches", value: $quantityMultiplier, format: .number)
-                        .keyboardType(.decimalPad)
                 }
             }
         }
         .navigationTitle("Add Meal")
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "Search recipes"
+        )
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
                     dismiss()
                 }
             }
+        }
+    }
+}
 
+struct AddPlannedMealAmountView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
+
+    let weekStarting: Date
+    let recipe: Recipe
+    let onAdd: () -> Void
+    @State private var quantityMultiplier = 1.0
+
+    var body: some View {
+        Form {
+            Section("Meal") {
+                LabeledContent("Recipe", value: recipe.name)
+            }
+
+            Section("Amount") {
+                TextField("Number of batches", value: $quantityMultiplier, format: .number)
+                    .keyboardType(.decimalPad)
+            }
+        }
+        .navigationTitle("Select Amount")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Add") {
                     addMeal()
                 }
-                .disabled(selectedRecipe == nil || quantityMultiplier <= 0)
+                .disabled(quantityMultiplier <= 0)
             }
         }
-        .task {
-            if selectedRecipeID == nil {
-                selectedRecipeID = recipes.first?.id
-            }
-        }
-    }
-
-    private var selectedRecipe: Recipe? {
-        recipes.first { $0.id == selectedRecipeID }
     }
 
     private func addMeal() {
-        guard let selectedRecipe else { return }
-
         let plan = SeedData.weekPlan(
             starting: weekStarting,
             existing: plans,
@@ -364,11 +397,11 @@ struct AddPlannedMealView: View {
         let meal = PlannedMeal(
             quantityMultiplier: quantityMultiplier,
             sortOrder: plan.plannedMeals.count,
-            recipe: selectedRecipe
+            recipe: recipe
         )
         plan.plannedMeals.append(meal)
         modelContext.insert(meal)
-        dismiss()
+        onAdd()
     }
 }
 
