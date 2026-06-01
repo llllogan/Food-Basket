@@ -100,13 +100,14 @@ struct WeekPlanView: View {
                         }
 
                         ForEach(plannedMeals) { plannedMeal in
-                            HStack(spacing: 12) {
-                                RecipeThumbnailView(photoData: plannedMeal.recipe?.photoData)
-
-                                Text(plannedMeal.recipe?.name ?? "Deleted recipe")
-                                Spacer()
-                                Text(plannedMeal.formattedMultiplier)
-                                    .foregroundStyle(.secondary)
+                            if let recipe = plannedMeal.recipe {
+                                NavigationLink {
+                                    RecipeDetailView(recipe: recipe)
+                                } label: {
+                                    plannedMealRow(for: plannedMeal)
+                                }
+                            } else {
+                                plannedMealRow(for: plannedMeal)
                             }
                         }
                         .onDelete(perform: deleteMeals)
@@ -131,16 +132,16 @@ struct WeekPlanView: View {
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
-                        
+
                         Button {
                             prepareReminderListSelection()
                         } label: {
                             Label("Add to Reminders", systemImage: "list.bullet")
                         }
                         .disabled(shoppingListLines.isEmpty)
-                        
+
                         if let rememberedReminderList {
-                            
+
                             Divider()
 
                             Button {
@@ -149,7 +150,7 @@ struct WeekPlanView: View {
                                 Label("Add to \(rememberedReminderList.title)", systemImage: "plus")
                             }
                             .disabled(shoppingListLines.isEmpty)
-                            
+
                             Button(role: .destructive) {
                                 clearReminders(from: rememberedReminderList)
                             } label: {
@@ -159,7 +160,7 @@ struct WeekPlanView: View {
                             }
                         }
 
-                        
+
                     } label: {
                         if isUpdatingReminders {
                             ProgressView()
@@ -205,6 +206,17 @@ struct WeekPlanView: View {
                     in: modelContext
                 )
             }
+        }
+    }
+
+    private func plannedMealRow(for plannedMeal: PlannedMeal) -> some View {
+        HStack(spacing: 12) {
+            RecipeThumbnailView(photoData: plannedMeal.recipe?.photoData)
+
+            Text(plannedMeal.recipe?.name ?? "Deleted recipe")
+            Spacer()
+            Text(plannedMeal.formattedMultiplier)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -306,115 +318,6 @@ struct WeekPlanView: View {
     }
 }
 
-struct AddPlannedMealView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Query(sort: \Recipe.name) private var recipes: [Recipe]
-
-    let weekStarting: Date
-    @State private var searchText = ""
-
-    private var filteredRecipes: [Recipe] {
-        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSearchText.isEmpty else { return recipes }
-
-        return recipes.filter {
-            $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
-        }
-    }
-
-    var body: some View {
-        List {
-            Section("Recipes") {
-                if recipes.isEmpty {
-                    Text("Create a recipe before adding a meal.")
-                        .foregroundStyle(.secondary)
-                } else if filteredRecipes.isEmpty {
-                    Text("No recipes found.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(filteredRecipes) { recipe in
-                        NavigationLink {
-                            AddPlannedMealAmountView(weekStarting: weekStarting, recipe: recipe) {
-                                dismiss()
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                RecipeThumbnailView(photoData: recipe.photoData)
-
-                                Text(recipe.name)
-                                    .foregroundStyle(.primary)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("Add Meal")
-        .navigationBarTitleDisplayMode(.inline)
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search recipes"
-        )
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
-                }
-            }
-        }
-    }
-}
-
-struct AddPlannedMealAmountView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
-
-    let weekStarting: Date
-    let recipe: Recipe
-    let onAdd: () -> Void
-    @State private var quantityMultiplier = 1.0
-
-    var body: some View {
-        Form {
-            Section("Meal") {
-                LabeledContent("Recipe", value: recipe.name)
-            }
-
-            Section("Amount") {
-                TextField("Number of batches", value: $quantityMultiplier, format: .number)
-                    .keyboardType(.decimalPad)
-            }
-        }
-        .navigationTitle("Select Amount")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Add") {
-                    addMeal()
-                }
-                .disabled(quantityMultiplier <= 0)
-            }
-        }
-    }
-
-    private func addMeal() {
-        let plan = SeedData.weekPlan(
-            starting: weekStarting,
-            existing: plans,
-            in: modelContext
-        )
-        let meal = PlannedMeal(
-            quantityMultiplier: quantityMultiplier,
-            sortOrder: plan.plannedMeals.count,
-            recipe: recipe
-        )
-        plan.plannedMeals.append(meal)
-        modelContext.insert(meal)
-        onAdd()
-    }
-}
-
 private extension PlannedMeal {
     var formattedMultiplier: String {
         let quantity = quantityMultiplier.formatted(.number.precision(.fractionLength(0...2)))
@@ -434,15 +337,4 @@ private extension PlannedMeal {
 
     WeekPlanView(showingIngredients: true)
         .modelContainer(previewData.container)
-}
-
-#Preview("Add Meal") {
-    let previewData = PreviewData()
-
-    NavigationStack {
-        AddPlannedMealView(
-            weekStarting: Calendar.current.startOfWeek(containing: Date())
-        )
-    }
-    .modelContainer(previewData.container)
 }

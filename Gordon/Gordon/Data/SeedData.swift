@@ -1,5 +1,5 @@
 //
-//  DataHelpers.swift
+//  SeedData.swift
 //  Gordon
 //
 //  Created by Codex on 31/5/2026.
@@ -7,19 +7,6 @@
 
 import Foundation
 import SwiftData
-
-extension String {
-    var normalizedLookupValue: String {
-        trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-}
-
-extension Calendar {
-    func startOfWeek(containing date: Date) -> Date {
-        let components = dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        return self.date(from: components) ?? startOfDay(for: date)
-    }
-}
 
 enum SeedData {
     static func ensureDefaults(in modelContext: ModelContext) {
@@ -124,60 +111,5 @@ enum SeedData {
         let plan = WeekPlan(weekStarting: weekStarting)
         modelContext.insert(plan)
         return plan
-    }
-}
-
-struct ShoppingListLine: Identifiable {
-    let ingredientID: UUID
-    let ingredientName: String
-    let categoryName: String
-    let unitSymbol: String
-    let photoData: Data?
-    var quantity: Double
-
-    var id: String {
-        "\(ingredientID.uuidString)-\(unitSymbol)"
-    }
-
-    var formattedQuantity: String {
-        quantity.formatted(.number.precision(.fractionLength(0...2)))
-    }
-
-    static func makeLines(for plan: WeekPlan?) -> [ShoppingListLine] {
-        guard let plan else { return [] }
-
-        var linesByID: [String: ShoppingListLine] = [:]
-
-        for plannedMeal in plan.plannedMeals {
-            guard let recipe = plannedMeal.recipe else { continue }
-
-            for recipeLine in recipe.ingredientLines {
-                guard let ingredient = recipeLine.ingredient else { continue }
-
-                let unitSymbol = ingredient.unit?.symbol ?? ""
-                let key = "\(ingredient.id.uuidString)-\(unitSymbol)"
-                let quantity = recipeLine.quantity * plannedMeal.quantityMultiplier
-
-                if linesByID[key] != nil {
-                    linesByID[key]?.quantity += quantity
-                } else {
-                    linesByID[key] = ShoppingListLine(
-                        ingredientID: ingredient.id,
-                        ingredientName: ingredient.name,
-                        categoryName: ingredient.category?.name ?? "Other",
-                        unitSymbol: unitSymbol,
-                        photoData: ingredient.photoData,
-                        quantity: quantity
-                    )
-                }
-            }
-        }
-
-        return linesByID.values.sorted {
-            if $0.categoryName == $1.categoryName {
-                return $0.ingredientName.localizedCaseInsensitiveCompare($1.ingredientName) == .orderedAscending
-            }
-            return $0.categoryName.localizedCaseInsensitiveCompare($1.categoryName) == .orderedAscending
-        }
     }
 }

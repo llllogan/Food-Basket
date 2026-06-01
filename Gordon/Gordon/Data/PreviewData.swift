@@ -66,7 +66,9 @@ struct PreviewData {
 
         let lemonChicken = Recipe(
             name: "Lemon Chicken with Rice",
-            method: "Roast the chicken with lemon, steam the broccoli, and serve with rice."
+            method: "Roast the chicken with lemon, steam the broccoli, and serve with rice.",
+            cookingTimeMinutes: 45,
+            serves: 4
         )
         Self.add(chicken, quantity: 500, to: lemonChicken, in: modelContext)
         Self.add(lemon, quantity: 1, to: lemonChicken, in: modelContext)
@@ -75,7 +77,9 @@ struct PreviewData {
 
         let broccoliRice = Recipe(
             name: "Broccoli Rice Bowl",
-            method: "Steam the broccoli and serve over rice with your preferred dressing."
+            method: "Steam the broccoli and serve over rice with your preferred dressing.",
+            cookingTimeMinutes: 25,
+            serves: 2
         )
         Self.add(broccoli, quantity: 2, to: broccoliRice, in: modelContext)
         Self.add(rice, quantity: 250, to: broccoliRice, in: modelContext)

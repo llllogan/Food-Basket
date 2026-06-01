@@ -1,11 +1,10 @@
 //
-//  ShoppingListSupport.swift
+//  ReminderListPickerView.swift
 //  Gordon
 //
 //  Created by Codex on 31/5/2026.
 //
 
-import Foundation
 import SwiftUI
 
 struct ReminderListPickerView: View {
@@ -38,19 +37,6 @@ struct ReminderListPickerView: View {
                 }
             }
         }
-    }
-}
-
-struct ReminderExportAlert: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-}
-
-extension ShoppingListLine {
-    var formattedAmount: String {
-        guard !unitSymbol.isEmpty else { return formattedQuantity }
-        return "\(formattedQuantity) \(unitSymbol)"
     }
 }
 
