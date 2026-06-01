@@ -50,10 +50,10 @@ struct AddIngredientAmountView: View {
     private func addIngredient() {
         let line = RecipeIngredient(
             quantity: quantity,
-            sortOrder: recipe.ingredientLines.count,
+            sortOrder: recipe.ingredientLines?.count ?? 0,
             ingredient: ingredient
         )
-        recipe.ingredientLines.append(line)
+        recipe.ingredientLines = (recipe.ingredientLines ?? []) + [line]
         modelContext.insert(line)
         onAdd()
     }

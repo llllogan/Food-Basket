@@ -10,18 +10,18 @@ import SwiftData
 
 @Model
 final class Recipe {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var method: String
+    var id: UUID = UUID()
+    var name: String = ""
+    var method: String = ""
     var cookingTimeMinutes: Int = 0
     var serves: Int = 0
     @Attribute(.externalStorage) var photoData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \RecipeIngredient.recipe)
-    var ingredientLines: [RecipeIngredient]
+    var ingredientLines: [RecipeIngredient]? = []
 
     @Relationship(deleteRule: .nullify, inverse: \PlannedMeal.recipe)
-    var plannedMeals: [PlannedMeal]
+    var plannedMeals: [PlannedMeal]? = []
 
     init(
         id: UUID = UUID(),
@@ -30,8 +30,8 @@ final class Recipe {
         cookingTimeMinutes: Int = 0,
         serves: Int = 0,
         photoData: Data? = nil,
-        ingredientLines: [RecipeIngredient] = [],
-        plannedMeals: [PlannedMeal] = []
+        ingredientLines: [RecipeIngredient]? = [],
+        plannedMeals: [PlannedMeal]? = []
     ) {
         self.id = id
         self.name = name
@@ -46,9 +46,9 @@ final class Recipe {
 
 @Model
 final class RecipeIngredient {
-    @Attribute(.unique) var id: UUID
-    var quantity: Double
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var quantity: Double = 0
+    var sortOrder: Int = 0
     var recipe: Recipe?
     var ingredient: Ingredient?
 

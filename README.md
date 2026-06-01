@@ -40,6 +40,12 @@ Gordon/Gordon/
 
 Gordon requests camera access when taking meal photos and Reminders access when exporting shopping-list items. Ingredient image generation uses Apple's Image Playground framework when available.
 
+## iCloud Sync
+
+Gordon syncs SwiftData records across devices signed into the same iCloud account using the private CloudKit container `iCloud.com.logan.Gordon`.
+
+To initialize or update the development CloudKit schema, add the launch argument `-InitializeCloudKitSchema YES` to the Debug scheme and run the app once. Remove the argument for normal development launches. Promote the schema in CloudKit Console before releasing the app.
+
 ## Build
 
 Open `Gordon/Gordon.xcodeproj` in Xcode, or run:

@@ -48,10 +48,10 @@ struct AddPlannedMealAmountView: View {
         )
         let meal = PlannedMeal(
             quantityMultiplier: quantityMultiplier,
-            sortOrder: plan.plannedMeals.count,
+            sortOrder: plan.plannedMeals?.count ?? 0,
             recipe: recipe
         )
-        plan.plannedMeals.append(meal)
+        plan.plannedMeals = (plan.plannedMeals ?? []) + [meal]
         modelContext.insert(meal)
         onAdd()
     }

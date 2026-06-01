@@ -17,10 +17,9 @@ struct CurrentWeekPlanReader {
     }
 
     func dinnerPlan() throws -> DinnerPlanResult {
-        let recipes = try currentPlan()?
-            .plannedMeals
+        let recipes = (try currentPlan()?.plannedMeals ?? [])
             .sorted { $0.sortOrder < $1.sortOrder }
-            .compactMap(\.recipe) ?? []
+            .compactMap(\.recipe)
         return DinnerPlanResult(
             mealNames: recipes.map(\.name),
             recipePhotoData: recipes.map(\.photoData)

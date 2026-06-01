@@ -80,7 +80,7 @@ struct IngredientsView: View {
         let deletedIngredients = offsets.map { filteredIngredients[$0] }
 
         for ingredient in deletedIngredients {
-            for recipeLine in ingredient.recipeLines {
+            for recipeLine in ingredient.recipeLines ?? [] {
                 modelContext.delete(recipeLine)
             }
 

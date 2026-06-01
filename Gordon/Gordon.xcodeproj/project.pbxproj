@@ -10,9 +10,22 @@
 		023ABE3A2FCC2D4500522816 /* Gordon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gordon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		023ABE4A2FCC2D4700522816 /* Exceptions for "Gordon" folder in "Gordon" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 023ABE392FCC2D4500522816 /* Gordon */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		023ABE3C2FCC2D4500522816 /* Gordon */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				023ABE4A2FCC2D4700522816 /* Exceptions for "Gordon" folder in "Gordon" target */,
+			);
 			path = Gordon;
 			sourceTree = "<group>";
 		};
@@ -82,6 +95,17 @@
 				TargetAttributes = {
 					023ABE392FCC2D4500522816 = {
 						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -251,11 +275,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Gordon/Gordon.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 282EVX55YN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Gordon/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of recipes and finished meals.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Add and remove shopping list items in Reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -285,11 +311,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Gordon/Gordon.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 282EVX55YN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Gordon/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of recipes and finished meals.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Add and remove shopping list items in Reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

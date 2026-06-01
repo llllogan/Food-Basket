@@ -43,7 +43,7 @@ struct RecipesView: View {
 
                             VStack(alignment: .leading) {
                                 Text(recipe.name)
-                                Text("\(recipe.ingredientLines.count) ingredients")
+                                Text("\(recipe.ingredientLines?.count ?? 0) ingredients")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -80,7 +80,7 @@ struct RecipesView: View {
         let deletedRecipes = offsets.map { filteredRecipes[$0] }
 
         for recipe in deletedRecipes {
-            for plannedMeal in recipe.plannedMeals {
+            for plannedMeal in recipe.plannedMeals ?? [] {
                 modelContext.delete(plannedMeal)
             }
 

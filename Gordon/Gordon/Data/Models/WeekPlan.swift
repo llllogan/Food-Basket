@@ -10,16 +10,16 @@ import SwiftData
 
 @Model
 final class WeekPlan {
-    @Attribute(.unique) var id: UUID
-    var weekStarting: Date
+    var id: UUID = UUID()
+    var weekStarting: Date = Date()
 
     @Relationship(deleteRule: .cascade, inverse: \PlannedMeal.weekPlan)
-    var plannedMeals: [PlannedMeal]
+    var plannedMeals: [PlannedMeal]? = []
 
     init(
         id: UUID = UUID(),
         weekStarting: Date,
-        plannedMeals: [PlannedMeal] = []
+        plannedMeals: [PlannedMeal]? = []
     ) {
         self.id = id
         self.weekStarting = weekStarting
@@ -29,9 +29,9 @@ final class WeekPlan {
 
 @Model
 final class PlannedMeal {
-    @Attribute(.unique) var id: UUID
-    var quantityMultiplier: Double
-    var sortOrder: Int
+    var id: UUID = UUID()
+    var quantityMultiplier: Double = 1
+    var sortOrder: Int = 0
     var weekPlan: WeekPlan?
     var recipe: Recipe?
 

@@ -21,7 +21,7 @@ struct RecipeDetailView: View {
     @State private var editedQuantity = ""
 
     private var ingredientLines: [RecipeIngredient] {
-        recipe.ingredientLines.sorted { $0.sortOrder < $1.sortOrder }
+        (recipe.ingredientLines ?? []).sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {

@@ -33,10 +33,10 @@ struct ShoppingListLine: Identifiable {
 
         var linesByID: [String: ShoppingListLine] = [:]
 
-        for plannedMeal in plan.plannedMeals {
+        for plannedMeal in plan.plannedMeals ?? [] {
             guard let recipe = plannedMeal.recipe else { continue }
 
-            for recipeLine in recipe.ingredientLines {
+            for recipeLine in recipe.ingredientLines ?? [] {
                 guard let ingredient = recipeLine.ingredient else { continue }
 
                 let unitSymbol = ingredient.unit?.symbol ?? ""

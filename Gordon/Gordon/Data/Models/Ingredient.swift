@@ -10,16 +10,16 @@ import SwiftData
 
 @Model
 final class Ingredient {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    @Attribute(.unique) var normalizedName: String
-    var defaultQuantity: Double
+    var id: UUID = UUID()
+    var name: String = ""
+    var normalizedName: String = ""
+    var defaultQuantity: Double = 1
     @Attribute(.externalStorage) var photoData: Data?
     var category: IngredientCategory?
     var unit: MeasurementUnit?
 
     @Relationship(deleteRule: .nullify, inverse: \RecipeIngredient.ingredient)
-    var recipeLines: [RecipeIngredient]
+    var recipeLines: [RecipeIngredient]? = []
 
     init(
         id: UUID = UUID(),
@@ -28,7 +28,7 @@ final class Ingredient {
         photoData: Data? = nil,
         category: IngredientCategory? = nil,
         unit: MeasurementUnit? = nil,
-        recipeLines: [RecipeIngredient] = []
+        recipeLines: [RecipeIngredient]? = []
     ) {
         self.id = id
         self.name = name
@@ -43,17 +43,17 @@ final class Ingredient {
 
 @Model
 final class IngredientCategory {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    @Attribute(.unique) var normalizedName: String
+    var id: UUID = UUID()
+    var name: String = ""
+    var normalizedName: String = ""
 
     @Relationship(deleteRule: .nullify, inverse: \Ingredient.category)
-    var ingredients: [Ingredient]
+    var ingredients: [Ingredient]? = []
 
     init(
         id: UUID = UUID(),
         name: String,
-        ingredients: [Ingredient] = []
+        ingredients: [Ingredient]? = []
     ) {
         self.id = id
         self.name = name
@@ -64,19 +64,19 @@ final class IngredientCategory {
 
 @Model
 final class MeasurementUnit {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    @Attribute(.unique) var normalizedName: String
-    var symbol: String
+    var id: UUID = UUID()
+    var name: String = ""
+    var normalizedName: String = ""
+    var symbol: String = ""
 
     @Relationship(deleteRule: .nullify, inverse: \Ingredient.unit)
-    var ingredients: [Ingredient]
+    var ingredients: [Ingredient]? = []
 
     init(
         id: UUID = UUID(),
         name: String,
         symbol: String,
-        ingredients: [Ingredient] = []
+        ingredients: [Ingredient]? = []
     ) {
         self.id = id
         self.name = name
