@@ -525,15 +525,13 @@ private struct WeekPlanCalendarView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(0..<4, id: \.self) { columnIndex in
-                    WeekPlanCalendarColumnView(
-                        topDay: days[columnIndex],
-                        bottomDay: days[columnIndex + 4],
-                        topPortions: portions(for: days[columnIndex]),
-                        bottomPortions: portions(for: days[columnIndex + 4]),
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(days) { day in
+                    WeekPlanDayCell(
+                        day: day,
+                        portions: portions(for: day),
                         draggingPortionID: portionDrag?.portionID,
-                        dropTargetDayOffset: dropTargetDayOffset,
+                        isDropTarget: dropTargetDayOffset == day.offset,
                         onPortionDragChanged: handlePortionDragChanged,
                         onPortionDragEnded: handlePortionDragEnded
                     )
@@ -621,47 +619,6 @@ private struct WeekPlanDayFramePreferenceKey: PreferenceKey {
     }
 }
 
-private struct WeekPlanCalendarColumnView: View {
-    let topDay: WeekPlanCalendarDay
-    let bottomDay: WeekPlanCalendarDay
-    let topPortions: [PlannedMealPortion]
-    let bottomPortions: [PlannedMealPortion]
-    let draggingPortionID: UUID?
-    let dropTargetDayOffset: Int?
-    let onPortionDragChanged: (PlannedMealPortion, DragGesture.Value) -> Void
-    let onPortionDragEnded: (PlannedMealPortion, DragGesture.Value) -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            WeekPlanDayCell(
-                day: topDay,
-                portions: topPortions,
-                draggingPortionID: draggingPortionID,
-                isDropTarget: dropTargetDayOffset == topDay.offset,
-                onPortionDragChanged: onPortionDragChanged,
-                onPortionDragEnded: onPortionDragEnded
-            )
-
-            Spacer()
-
-            WeekPlanDayCell(
-                day: bottomDay,
-                portions: bottomPortions,
-                draggingPortionID: draggingPortionID,
-                isDropTarget: dropTargetDayOffset == bottomDay.offset,
-                onPortionDragChanged: onPortionDragChanged,
-                onPortionDragEnded: onPortionDragEnded
-            )
-        }
-        .background(Color(uiColor: .secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color(uiColor: .separator).opacity(0.24), lineWidth: 0.5)
-        }
-    }
-}
-
 private struct WeekPlanDayCell: View {
     let day: WeekPlanCalendarDay
     let portions: [PlannedMealPortion]
@@ -713,6 +670,8 @@ private struct WeekPlanDayCell: View {
             .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
             .padding(6)
         }
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .background {
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -726,10 +685,12 @@ private struct WeekPlanDayCell: View {
             }
         }
         .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color(uiColor: .separator).opacity(0.24), lineWidth: 0.5)
+
             if isDropTarget {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(Color.accentColor.opacity(0.65), lineWidth: 2)
-                    .padding(1)
             }
         }
         .accessibilityElement(children: .contain)
