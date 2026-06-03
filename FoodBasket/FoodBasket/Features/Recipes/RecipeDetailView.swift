@@ -97,19 +97,25 @@ struct RecipeDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingEditRecipe = true
+                } label: {
+                    Text("Edit")
+                }
+            }
+            
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     takePhoto()
                 } label: {
                     Label("Take Meal Photo", systemImage: "camera")
                 }
-
-                Button {
-                    showingEditRecipe = true
-                } label: {
-                    Label("Edit Recipe", systemImage: "pencil")
-                }
-
+            }
+            
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingAddIngredient = true
                 } label: {

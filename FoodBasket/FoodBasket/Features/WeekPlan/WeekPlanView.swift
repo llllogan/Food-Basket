@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import TipKit
 import UIKit
 
 struct WeekPlanView: View {
@@ -23,10 +24,12 @@ struct WeekPlanView: View {
     @State private var reminderLists: [ReminderListOption] = []
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
+    @State private var isAddGroceriesTipPresented = false
     @State private var exportAlert: ReminderExportAlert?
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
 
+    private let addGroceriesTip = AddGroceriesToRemindersTip()
     private let planWeekStarting = Calendar.current.startOfWeek(containing: Date())
     private let calendarWeekStarting = WeekPlanCalendar.mondayStart(containing: Date())
 
@@ -123,12 +126,16 @@ struct WeekPlanView: View {
                         if isUpdatingReminders {
                             ProgressView()
                         } else {
-                            Label("Update Reminders", systemImage: "checklist")
+                            Label("Update Reminders", systemImage: "square.and.arrow.up")
                         }
                     }
                     .disabled(
-                        isUpdatingReminders ||
-                        (rememberedReminderList == nil && shoppingListLines.isEmpty)
+                        isUpdatingReminders
+                    )
+                    .popoverTip(
+                        addGroceriesTip,
+                        isPresented: $isAddGroceriesTipPresented,
+                        arrowEdge: .top
                     )
 
                     Button {
@@ -156,6 +163,9 @@ struct WeekPlanView: View {
                     message: Text(alert.message),
                     dismissButton: .default(Text("OK"))
                 )
+            }
+            .onAppear {
+                isAddGroceriesTipPresented = true
             }
             .task {
                 let plan = SeedData.weekPlan(
@@ -553,6 +563,10 @@ private struct WeekPlanCalendarView: View {
             dayFrames = frames
         }
         .padding(.vertical, 4)
+        
+        Text("Hold and drag meals to assign them to a day. To remove a meal, swipe to delete it from the List tab.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
     }
 
     private func portions(for day: WeekPlanCalendarDay) -> [PlannedMealPortion] {

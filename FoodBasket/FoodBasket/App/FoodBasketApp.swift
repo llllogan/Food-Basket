@@ -8,12 +8,14 @@
 import AppIntents
 import SwiftData
 import SwiftUI
+import TipKit
 
 @main
 struct FoodBasketApp: App {
     let sharedModelContainer = FoodBasketModelContainer.shared
 
     init() {
+        try? Tips.configure()
         FoodBasketShortcuts.updateAppShortcutParameters()
     }
 
