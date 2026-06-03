@@ -16,15 +16,7 @@ enum FoodBasketModelContainer {
     static let shared = make()
 
     static func make(isStoredInMemoryOnly: Bool = false) -> ModelContainer {
-        let schema = Schema([
-            Recipe.self,
-            RecipeIngredient.self,
-            Ingredient.self,
-            IngredientCategory.self,
-            MeasurementUnit.self,
-            WeekPlan.self,
-            PlannedMeal.self,
-        ])
+        let schema = FoodBasketDataSchema.current
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: isStoredInMemoryOnly,

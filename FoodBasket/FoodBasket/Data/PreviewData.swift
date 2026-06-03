@@ -14,15 +14,7 @@ struct PreviewData {
     let ingredient: Ingredient
 
     init() {
-        let schema = Schema([
-            Recipe.self,
-            RecipeIngredient.self,
-            Ingredient.self,
-            IngredientCategory.self,
-            MeasurementUnit.self,
-            WeekPlan.self,
-            PlannedMeal.self,
-        ])
+        let schema = FoodBasketDataSchema.current
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
 
         do {
@@ -136,9 +128,29 @@ struct PreviewData {
         let meal = PlannedMeal(
             quantityMultiplier: quantityMultiplier,
             sortOrder: plan.plannedMeals?.count ?? 0,
+            weekPlan: plan,
             recipe: recipe
         )
         plan.plannedMeals = (plan.plannedMeals ?? []) + [meal]
         modelContext.insert(meal)
+
+        let existingPortions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
+        let firstSortOrder = (
+            existingPortions
+                .filter { $0.weekPlan?.id == plan.id && $0.dayOffset == 0 }
+                .map(\.sortOrder)
+                .max() ?? -1
+        ) + 1
+
+        for index in 0..<PlannedMealPortion.portionCount(for: meal) {
+            modelContext.insert(
+                PlannedMealPortion(
+                    dayOffset: 0,
+                    sortOrder: firstSortOrder + index,
+                    weekPlan: plan,
+                    plannedMeal: meal
+                )
+            )
+        }
     }
 }

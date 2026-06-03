@@ -16,14 +16,19 @@ final class WeekPlan {
     @Relationship(deleteRule: .cascade, inverse: \PlannedMeal.weekPlan)
     var plannedMeals: [PlannedMeal]? = []
 
+    @Relationship(deleteRule: .cascade, inverse: \PlannedMealPortion.weekPlan)
+    var plannedMealPortions: [PlannedMealPortion]? = []
+
     init(
         id: UUID = UUID(),
         weekStarting: Date,
-        plannedMeals: [PlannedMeal]? = []
+        plannedMeals: [PlannedMeal]? = [],
+        plannedMealPortions: [PlannedMealPortion]? = []
     ) {
         self.id = id
         self.weekStarting = weekStarting
         self.plannedMeals = plannedMeals
+        self.plannedMealPortions = plannedMealPortions
     }
 }
 
@@ -35,17 +40,53 @@ final class PlannedMeal {
     var weekPlan: WeekPlan?
     var recipe: Recipe?
 
+    @Relationship(deleteRule: .cascade, inverse: \PlannedMealPortion.plannedMeal)
+    var portions: [PlannedMealPortion]? = []
+
     init(
         id: UUID = UUID(),
         quantityMultiplier: Double = 1,
         sortOrder: Int = 0,
         weekPlan: WeekPlan? = nil,
-        recipe: Recipe? = nil
+        recipe: Recipe? = nil,
+        portions: [PlannedMealPortion]? = []
     ) {
         self.id = id
         self.quantityMultiplier = quantityMultiplier
         self.sortOrder = sortOrder
         self.weekPlan = weekPlan
         self.recipe = recipe
+        self.portions = portions
+    }
+}
+
+@Model
+final class PlannedMealPortion {
+    var id: UUID = UUID()
+    var dayOffset: Int = 0
+    var sortOrder: Int = 0
+    var weekPlan: WeekPlan?
+    var plannedMeal: PlannedMeal?
+
+    init(
+        id: UUID = UUID(),
+        dayOffset: Int = 0,
+        sortOrder: Int = 0,
+        weekPlan: WeekPlan? = nil,
+        plannedMeal: PlannedMeal? = nil
+    ) {
+        self.id = id
+        self.dayOffset = dayOffset
+        self.sortOrder = sortOrder
+        self.weekPlan = weekPlan
+        self.plannedMeal = plannedMeal
+    }
+}
+
+extension PlannedMealPortion {
+    static func portionCount(for plannedMeal: PlannedMeal) -> Int {
+        let serves = max(plannedMeal.recipe?.serves ?? 1, 1)
+        let count = Double(serves) * max(plannedMeal.quantityMultiplier, 0)
+        return max(Int(count.rounded(.toNearestOrAwayFromZero)), 1)
     }
 }
