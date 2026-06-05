@@ -12,6 +12,7 @@ struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @State private var showingAddRecipe = false
+    @State private var showingImportRecipe = false
     @State private var searchText = ""
 
     private var filteredRecipes: [Recipe] {
@@ -63,6 +64,14 @@ struct RecipesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showingImportRecipe = true
+                    } label: {
+                        Label("Import Recipe", systemImage: "link.badge.plus")
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showingAddRecipe = true
                     } label: {
                         Label("Add Recipe", systemImage: "plus")
@@ -72,6 +81,11 @@ struct RecipesView: View {
             .sheet(isPresented: $showingAddRecipe) {
                 NavigationStack {
                     RecipeFormView()
+                }
+            }
+            .sheet(isPresented: $showingImportRecipe) {
+                NavigationStack {
+                    RecipeURLImportView()
                 }
             }
         }
