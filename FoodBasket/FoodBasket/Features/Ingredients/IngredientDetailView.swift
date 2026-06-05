@@ -48,12 +48,17 @@ struct IngredientDetailView: View {
                         Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
                     }
                 }
+            } header: {
+                Text("Details")
+            }
+            
+            Section {
                 TextField("Default quantity", value: $ingredient.defaultQuantity, format: .number)
                     .keyboardType(.decimalPad)
-            }header: {
-                Text("Details")
+            } header: {
+                Text("Default Amount")
             } footer: {
-                Text("This count will be pre-filled when adding this ingredient to a recipe.")
+                Text("This amount will be pre-filled when adding this ingredient to a recipe. You can change this to any other amount or leave it blank to use the default.")
             }
         }
         .navigationTitle(ingredient.name)

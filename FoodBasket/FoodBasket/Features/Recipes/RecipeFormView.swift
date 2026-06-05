@@ -28,7 +28,7 @@ struct RecipeFormView: View {
 
     var body: some View {
         Form {
-            Section("Recipe") {
+            Section("Recipe Name") {
                 TextField("Name", text: $name)
             }
             
@@ -36,9 +36,7 @@ struct RecipeFormView: View {
                 TextField("Cooking time (minutes)", value: $cookingTimeMinutes, format: .number)
                     .keyboardType(.numberPad)
             } header: {
-                Text("Cooking time")
-            } footer: {
-                Text("minutes")
+                Text("Cooking time (minutes)")
             }
             
             Section("Serves") {
