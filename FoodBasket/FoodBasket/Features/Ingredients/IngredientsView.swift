@@ -54,6 +54,7 @@ struct IngredientsView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Ingredients")
+            .toolbarTitleDisplayMode(.inlineLarge)
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),

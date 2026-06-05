@@ -94,6 +94,7 @@ struct WeekPlanView: View {
             }
             .listStyle(.plain)
             .navigationTitle("This Week")
+            .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {

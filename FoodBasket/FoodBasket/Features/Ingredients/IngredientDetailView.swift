@@ -67,6 +67,7 @@ struct IngredientDetailView: View {
             }
         }
         .navigationTitle(ingredient.name)
+        .toolbarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

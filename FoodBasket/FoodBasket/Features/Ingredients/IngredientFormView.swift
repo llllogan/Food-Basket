@@ -8,10 +8,13 @@
 import SwiftData
 import SwiftUI
 import FoundationModels
+import ImagePlayground
+import UIKit
 
 struct IngredientFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
     @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
@@ -33,6 +36,12 @@ struct IngredientFormView: View {
     @State private var categorySuggestionState: CategorySuggestionState = .idle
     @State private var suggestedCategoryID: UUID?
     @State private var manuallySelectedCategoryName: String?
+    @State private var draftPhotoData: Data?
+    @State private var draftPhotoSource: IngredientDraftPhotoSource = .none
+    @State private var isGeneratingImage = false
+    @State private var activeImageGenerationID: UUID?
+    @State private var showingCamera = false
+    @State private var showingCameraUnavailable = false
     @State private var didFinish = false
 
     init(onSave: ((Ingredient) -> Void)? = nil) {
@@ -72,13 +81,54 @@ struct IngredientFormView: View {
         return "\(canSuggestCategory)|\(trimmedName.normalizedLookupValue)|\(categoryKey)"
     }
 
+    private var imageGenerationKey: String {
+        "\(supportsImagePlayground)|\(trimmedName.normalizedLookupValue)"
+    }
+
     private var canSuggestCategory: Bool {
         guard case .available = categoryModel.availability else { return false }
         return true
     }
 
+    private var canGenerateIngredientImage: Bool {
+        supportsImagePlayground && !trimmedName.isEmpty && !isGeneratingImage
+    }
+
     var body: some View {
         Form {
+            Section {
+                VStack(spacing: 18) {
+                    IngredientDraftPhotoThumbnail(
+                        photoData: draftPhotoData,
+                        isGenerating: isGeneratingImage
+                    )
+
+                    HStack(spacing: 10) {
+                        if supportsImagePlayground {
+                            IngredientPhotoActionButton(
+                                title: "Regenerate",
+                                systemImage: "wand.and.sparkles",
+                                isDisabled: !canGenerateIngredientImage,
+                                isAi: true
+                            ) {
+                                regenerateDraftImage()
+                            }
+                        }
+
+                        IngredientPhotoActionButton(
+                            title: "Take Photo",
+                            systemImage: "camera",
+                            isDisabled: false,
+                            isAi: false
+                        ) {
+                            takePhoto()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .listRowBackground(Color.clear)
+            
             Section("Ingredient") {
                 TextField("Name", text: $name)
                 Picker("Unit", selection: unitSelection) {
@@ -135,6 +185,7 @@ struct IngredientFormView: View {
             } footer: {
                 Text("When adding this ingredient to a recipe, this is the amount that will be used if you don't specify anything.")
             }
+
         }
         .navigationTitle("New Ingredient")
         .navigationBarTitleDisplayMode(.inline)
@@ -161,6 +212,9 @@ struct IngredientFormView: View {
         .task(id: categorySuggestionKey) {
             await suggestCategoryIfNeeded()
         }
+        .task(id: imageGenerationKey) {
+            await generateDraftImageIfNeeded()
+        }
         .alert("New Category", isPresented: $showingNewCategoryAlert) {
             TextField("Category name", text: $newCategoryName)
 
@@ -181,6 +235,20 @@ struct IngredientFormView: View {
             .disabled(newUnitName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             Button("Cancel", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraPicker { image in
+                activeImageGenerationID = nil
+                isGeneratingImage = false
+                draftPhotoData = image.recipePhotoData
+                draftPhotoSource = .captured
+            }
+            .ignoresSafeArea()
+        }
+        .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("A camera is not available on this device.")
         }
         .onDisappear {
             guard !didFinish else { return }
@@ -208,6 +276,7 @@ struct IngredientFormView: View {
         let ingredient = Ingredient(
             name: trimmedName,
             defaultQuantity: defaultQuantity,
+            photoData: draftPhotoData,
             category: category,
             unit: unit
         )
@@ -216,7 +285,6 @@ struct IngredientFormView: View {
         locallyCreatedCategories = []
         locallyCreatedUnits = []
         didFinish = true
-        generateImage(for: ingredient)
         onSave?(ingredient)
         dismiss()
     }
@@ -334,19 +402,6 @@ struct IngredientFormView: View {
         }
 
         try? modelContext.save()
-    }
-
-    private func generateImage(for ingredient: Ingredient) {
-        Task { @MainActor in
-            guard let photoData = await IngredientImageGenerator.generateImageData(
-                for: ingredient.name
-            ) else {
-                return
-            }
-
-            ingredient.photoData = photoData
-            try? modelContext.save()
-        }
     }
 
     private func suggestCategoryIfNeeded() async {
@@ -520,6 +575,135 @@ struct IngredientFormView: View {
         return categories.first {
             $0.normalizedName == inferred.normalizedLookupValue
         }?.name
+    }
+
+    private func generateDraftImageIfNeeded() async {
+        guard supportsImagePlayground else {
+            isGeneratingImage = false
+            return
+        }
+
+        guard !trimmedName.isEmpty else {
+            guard draftPhotoSource != .captured else { return }
+            activeImageGenerationID = nil
+            isGeneratingImage = false
+            draftPhotoData = nil
+            draftPhotoSource = .none
+            return
+        }
+
+        guard draftPhotoSource != .captured else { return }
+        await generateDraftImage(replacingCapturedPhoto: false)
+    }
+
+    private func regenerateDraftImage() {
+        Task {
+            await generateDraftImage(replacingCapturedPhoto: true)
+        }
+    }
+
+    private func generateDraftImage(replacingCapturedPhoto: Bool) async {
+        let ingredientName = trimmedName
+        guard supportsImagePlayground, !ingredientName.isEmpty else { return }
+        guard replacingCapturedPhoto || draftPhotoSource != .captured else { return }
+
+        let generationID = UUID()
+        activeImageGenerationID = generationID
+        isGeneratingImage = true
+        draftPhotoData = nil
+        draftPhotoSource = .none
+
+        do {
+            try Task.checkCancellation()
+            let photoData = await IngredientImageGenerator.generateImageData(for: ingredientName)
+            try Task.checkCancellation()
+
+            guard activeImageGenerationID == generationID else { return }
+            activeImageGenerationID = nil
+            isGeneratingImage = false
+
+            guard trimmedName == ingredientName else { return }
+            guard replacingCapturedPhoto || draftPhotoSource != .captured else { return }
+
+            draftPhotoData = photoData
+            draftPhotoSource = photoData == nil ? .none : .generated
+        } catch is CancellationError {
+            guard activeImageGenerationID == generationID else { return }
+            activeImageGenerationID = nil
+            isGeneratingImage = false
+        } catch {
+            guard activeImageGenerationID == generationID else { return }
+            activeImageGenerationID = nil
+            isGeneratingImage = false
+            draftPhotoSource = .none
+        }
+    }
+
+    private func takePhoto() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showingCameraUnavailable = true
+            return
+        }
+
+        showingCamera = true
+    }
+}
+
+private enum IngredientDraftPhotoSource {
+    case none
+    case generated
+    case captured
+}
+
+private struct IngredientDraftPhotoThumbnail: View {
+    let photoData: Data?
+    let isGenerating: Bool
+
+    var body: some View {
+        Group {
+            if let image = photoData.flatMap(UIImage.init(data:)), !isGenerating {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Color(uiColor: .tertiarySystemFill)
+
+                    if isGenerating {
+                        ProgressView()
+                            .controlSize(.large)
+                    } else {
+                        Image(systemName: "carrot")
+                            .font(.largeTitle)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(width: 132, height: 132)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
+private struct IngredientPhotoActionButton: View {
+    let title: String
+    let systemImage: String
+    let isDisabled: Bool
+    let isAi: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.subheadline)
+                Text(title)
+            }
+            .foregroundStyle(isAi ? .purple : .primary)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(isDisabled)
     }
 }
 
