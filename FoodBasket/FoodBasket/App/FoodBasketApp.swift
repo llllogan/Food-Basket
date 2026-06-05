@@ -12,6 +12,8 @@ import TipKit
 
 @main
 struct FoodBasketApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     let sharedModelContainer = FoodBasketModelContainer.shared
 
     init() {
@@ -22,6 +24,25 @@ struct FoodBasketApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .task {
+                    IngredientEnrichmentScheduler.schedulePendingIngredientEnrichment(
+                        in: sharedModelContainer.mainContext
+                    )
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    switch newPhase {
+                    case .active:
+                        IngredientEnrichmentScheduler.schedulePendingIngredientEnrichment(
+                            in: sharedModelContainer.mainContext
+                        )
+                    case .background:
+                        IngredientEnrichmentScheduler.cancelPendingIngredientEnrichment()
+                    case .inactive:
+                        break
+                    @unknown default:
+                        break
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
     }

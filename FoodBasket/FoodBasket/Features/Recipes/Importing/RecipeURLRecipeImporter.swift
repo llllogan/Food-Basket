@@ -10,7 +10,10 @@ import SwiftData
 
 @MainActor
 enum RecipeURLRecipeImporter {
-    static func importRecipe(from url: URL, in modelContext: ModelContext) async throws -> Recipe {
+    static func importRecipe(
+        from url: URL,
+        in modelContext: ModelContext
+    ) async throws -> Recipe {
         let importedRecipe = try await RecipeURLIngredientImporter.importRecipe(from: url)
         SeedData.ensureDefaults(in: modelContext)
 
@@ -33,12 +36,10 @@ enum RecipeURLRecipeImporter {
         modelContext.insert(recipe)
 
         var recipeLines: [RecipeIngredient] = []
-        var createdIngredients: [Ingredient] = []
         for importedIngredient in importedRecipe.ingredients {
             let ingredient = ingredientForImportedIngredient(
                 importedIngredient,
                 ingredientsByName: &ingredientsByName,
-                createdIngredients: &createdIngredients,
                 units: units,
                 in: modelContext
             )
@@ -55,14 +56,12 @@ enum RecipeURLRecipeImporter {
 
         recipe.ingredientLines = recipeLines
         try modelContext.save()
-        enrichCreatedIngredients(createdIngredients, in: modelContext)
         return recipe
     }
 
     private static func ingredientForImportedIngredient(
         _ importedIngredient: ImportedRecipeIngredient,
         ingredientsByName: inout [String: Ingredient],
-        createdIngredients: inout [Ingredient],
         units: [MeasurementUnit],
         in modelContext: ModelContext
     ) -> Ingredient {
@@ -84,19 +83,7 @@ enum RecipeURLRecipeImporter {
         )
         modelContext.insert(ingredient)
         ingredientsByName[ingredient.normalizedName] = ingredient
-        createdIngredients.append(ingredient)
         return ingredient
-    }
-
-    private static func enrichCreatedIngredients(
-        _ ingredients: [Ingredient],
-        in modelContext: ModelContext
-    ) {
-        guard !ingredients.isEmpty else { return }
-
-        Task { @MainActor in
-            await IngredientEnrichmentRunner.enrichCreatedIngredients(ingredients, in: modelContext)
-        }
     }
 
     private static func unit(for unitText: String?, in units: [MeasurementUnit]) -> MeasurementUnit? {

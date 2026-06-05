@@ -11,18 +11,19 @@ import SwiftData
 
 @MainActor
 enum FoodBasketModelContainer {
-    private static let cloudKitContainerIdentifier = "iCloud.com.logan.FoodBasket"
-
     static let shared = make()
 
     static func make(isStoredInMemoryOnly: Bool = false) -> ModelContainer {
         let schema = FoodBasketDataSchema.current
-        let configuration = ModelConfiguration(
+        migrateDefaultStoreToSharedContainerIfNeeded(
+            schema: schema,
+            isStoredInMemoryOnly: isStoredInMemoryOnly
+        )
+
+        let configuration = modelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: isStoredInMemoryOnly,
-            cloudKitDatabase: isStoredInMemoryOnly
-                ? .none
-                : .private(cloudKitContainerIdentifier)
+            usesSharedContainer: true
         )
 
         do {
@@ -49,7 +50,7 @@ enum FoodBasketModelContainer {
         try autoreleasepool {
             let description = NSPersistentStoreDescription(url: configuration.url)
             description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-                containerIdentifier: cloudKitContainerIdentifier
+                containerIdentifier: FoodBasketSharedContainer.cloudKitContainerIdentifier
             )
             description.shouldAddStoreAsynchronously = false
 
@@ -76,4 +77,87 @@ enum FoodBasketModelContainer {
         }
     }
     #endif
+
+    private static func modelConfiguration(
+        schema: Schema,
+        isStoredInMemoryOnly: Bool,
+        usesSharedContainer: Bool
+    ) -> ModelConfiguration {
+        guard !isStoredInMemoryOnly else {
+            return ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+        }
+
+        return ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            groupContainer: usesSharedContainer
+                ? .identifier(FoodBasketSharedContainer.appGroupIdentifier)
+                : .automatic,
+            cloudKitDatabase: .private(FoodBasketSharedContainer.cloudKitContainerIdentifier)
+        )
+    }
+
+    private static func migrateDefaultStoreToSharedContainerIfNeeded(
+        schema: Schema,
+        isStoredInMemoryOnly: Bool
+    ) {
+        let sharedStoreURL = modelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            usesSharedContainer: true
+        ).url
+
+        guard !isStoredInMemoryOnly,
+              !FileManager.default.fileExists(atPath: sharedStoreURL.path) else {
+            return
+        }
+
+        let defaultConfiguration = modelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            usesSharedContainer: false
+        )
+        let defaultStoreURL = defaultConfiguration.url
+
+        guard defaultStoreURL != sharedStoreURL,
+              FileManager.default.fileExists(atPath: defaultStoreURL.path) else {
+            return
+        }
+
+        copyStoreFileIfPresent(from: defaultStoreURL, to: sharedStoreURL)
+        copyStoreFileIfPresent(
+            from: sqliteSidecarURL(for: defaultStoreURL, suffix: "-shm"),
+            to: sqliteSidecarURL(for: sharedStoreURL, suffix: "-shm")
+        )
+        copyStoreFileIfPresent(
+            from: sqliteSidecarURL(for: defaultStoreURL, suffix: "-wal"),
+            to: sqliteSidecarURL(for: sharedStoreURL, suffix: "-wal")
+        )
+    }
+
+    private static func sqliteSidecarURL(for storeURL: URL, suffix: String) -> URL {
+        URL(fileURLWithPath: storeURL.path + suffix)
+    }
+
+    private static func copyStoreFileIfPresent(from sourceURL: URL, to destinationURL: URL) {
+        guard FileManager.default.fileExists(atPath: sourceURL.path),
+              !FileManager.default.fileExists(atPath: destinationURL.path) else {
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: destinationURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        } catch {
+            // If the old local store cannot be copied, SwiftData can still create/open
+            // the shared store and CloudKit can repopulate it.
+        }
+    }
 }

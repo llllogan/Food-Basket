@@ -6,8 +6,66 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FB5A02012FD1000000000001 /* FoodBasketShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FB5A01012FD1000000000001 /* FoodBasketShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FB5A02022FD1000000000001 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A01022FD1000000000001 /* ShareViewController.swift */; };
+		FB5A02032FD1000000000001 /* FoodBasket/Data/FoodBasketSharedContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A01052FD1000000000001 /* FoodBasket/Data/FoodBasketSharedContainer.swift */; };
+		FB5A02042FD1000000000001 /* FoodBasket/Data/FoodBasketModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A01062FD1000000000001 /* FoodBasket/Data/FoodBasketModelContainer.swift */; };
+		FB5A02052FD1000000000001 /* FoodBasket/Data/FoodBasketSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A01072FD1000000000001 /* FoodBasket/Data/FoodBasketSchema.swift */; };
+		FB5A02062FD1000000000001 /* FoodBasket/Data/SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A01082FD1000000000001 /* FoodBasket/Data/SeedData.swift */; };
+		FB5A02072FD1000000000001 /* FoodBasket/Data/Models/Ingredient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A01092FD1000000000001 /* FoodBasket/Data/Models/Ingredient.swift */; };
+		FB5A02082FD1000000000001 /* FoodBasket/Data/Models/Recipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A010A2FD1000000000001 /* FoodBasket/Data/Models/Recipe.swift */; };
+		FB5A02092FD1000000000001 /* FoodBasket/Data/Models/WeekPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A010B2FD1000000000001 /* FoodBasket/Data/Models/WeekPlan.swift */; };
+		FB5A020A2FD1000000000001 /* FoodBasket/Shared/Extensions/String+NormalizedLookupValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A010C2FD1000000000001 /* FoodBasket/Shared/Extensions/String+NormalizedLookupValue.swift */; };
+		FB5A020B2FD1000000000001 /* FoodBasket/Shared/Extensions/UIImage+RecipePhotoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A010D2FD1000000000001 /* FoodBasket/Shared/Extensions/UIImage+RecipePhotoData.swift */; };
+		FB5A020C2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A010E2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift */; };
+		FB5A020D2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A010F2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		FB5A05012FD1000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 023ABE322FCC2D4500522816 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FB5A04012FD1000000000001;
+			remoteInfo = FoodBasketShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FB5A03042FD1000000000001 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				FB5A02012FD1000000000001 /* FoodBasketShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		023ABE3A2FCC2D4500522816 /* Food Basket.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Food Basket.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB5A01012FD1000000000001 /* FoodBasketShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FoodBasketShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		FB5A01022FD1000000000001 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		FB5A01032FD1000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FB5A01042FD1000000000001 /* FoodBasketShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoodBasketShareExtension.entitlements; sourceTree = "<group>"; };
+		FB5A01052FD1000000000001 /* FoodBasket/Data/FoodBasketSharedContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/FoodBasketSharedContainer.swift; sourceTree = "<group>"; };
+		FB5A01062FD1000000000001 /* FoodBasket/Data/FoodBasketModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/FoodBasketModelContainer.swift; sourceTree = "<group>"; };
+		FB5A01072FD1000000000001 /* FoodBasket/Data/FoodBasketSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/FoodBasketSchema.swift; sourceTree = "<group>"; };
+		FB5A01082FD1000000000001 /* FoodBasket/Data/SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/SeedData.swift; sourceTree = "<group>"; };
+		FB5A01092FD1000000000001 /* FoodBasket/Data/Models/Ingredient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/Models/Ingredient.swift; sourceTree = "<group>"; };
+		FB5A010A2FD1000000000001 /* FoodBasket/Data/Models/Recipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/Models/Recipe.swift; sourceTree = "<group>"; };
+		FB5A010B2FD1000000000001 /* FoodBasket/Data/Models/WeekPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Data/Models/WeekPlan.swift; sourceTree = "<group>"; };
+		FB5A010C2FD1000000000001 /* FoodBasket/Shared/Extensions/String+NormalizedLookupValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FoodBasket/Shared/Extensions/String+NormalizedLookupValue.swift"; sourceTree = "<group>"; };
+		FB5A010D2FD1000000000001 /* FoodBasket/Shared/Extensions/UIImage+RecipePhotoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FoodBasket/Shared/Extensions/UIImage+RecipePhotoData.swift"; sourceTree = "<group>"; };
+		FB5A010E2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift; sourceTree = "<group>"; };
+		FB5A010F2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift; sourceTree = "<group>"; };
+		FB5A01102FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientEnrichmentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Ingredients/IngredientEnrichmentRunner.swift; sourceTree = "<group>"; };
+		FB5A01112FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientImageGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Ingredients/IngredientImageGenerator.swift; sourceTree = "<group>"; };
+		FB5A01122FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientCategorySuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Ingredients/IngredientCategorySuggestionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -39,6 +97,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FB5A03022FD1000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -46,6 +111,8 @@
 			isa = PBXGroup;
 			children = (
 				023ABE3C2FCC2D4500522816 /* FoodBasket */,
+				FB5A07012FD1000000000001 /* FoodBasketShareExtension */,
+				FB5A07022FD1000000000001 /* Shared Extension Sources */,
 				023ABE3B2FCC2D4500522816 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,8 +121,40 @@
 			isa = PBXGroup;
 			children = (
 				023ABE3A2FCC2D4500522816 /* Food Basket.app */,
+				FB5A01012FD1000000000001 /* FoodBasketShareExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		FB5A07012FD1000000000001 /* FoodBasketShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				FB5A01022FD1000000000001 /* ShareViewController.swift */,
+				FB5A01032FD1000000000001 /* Info.plist */,
+				FB5A01042FD1000000000001 /* FoodBasketShareExtension.entitlements */,
+			);
+			path = FoodBasketShareExtension;
+			sourceTree = "<group>";
+		};
+		FB5A07022FD1000000000001 /* Shared Extension Sources */ = {
+			isa = PBXGroup;
+			children = (
+				FB5A01052FD1000000000001 /* FoodBasket/Data/FoodBasketSharedContainer.swift */,
+				FB5A01062FD1000000000001 /* FoodBasket/Data/FoodBasketModelContainer.swift */,
+				FB5A01072FD1000000000001 /* FoodBasket/Data/FoodBasketSchema.swift */,
+				FB5A01082FD1000000000001 /* FoodBasket/Data/SeedData.swift */,
+				FB5A01092FD1000000000001 /* FoodBasket/Data/Models/Ingredient.swift */,
+				FB5A010A2FD1000000000001 /* FoodBasket/Data/Models/Recipe.swift */,
+				FB5A010B2FD1000000000001 /* FoodBasket/Data/Models/WeekPlan.swift */,
+				FB5A010C2FD1000000000001 /* FoodBasket/Shared/Extensions/String+NormalizedLookupValue.swift */,
+				FB5A010D2FD1000000000001 /* FoodBasket/Shared/Extensions/UIImage+RecipePhotoData.swift */,
+				FB5A010E2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift */,
+				FB5A010F2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift */,
+				FB5A01102FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientEnrichmentRunner.swift */,
+				FB5A01112FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientImageGenerator.swift */,
+				FB5A01122FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientCategorySuggestionService.swift */,
+			);
+			name = "Shared Extension Sources";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -68,10 +167,12 @@
 				023ABE362FCC2D4500522816 /* Sources */,
 				023ABE372FCC2D4500522816 /* Frameworks */,
 				023ABE382FCC2D4500522816 /* Resources */,
+				FB5A03042FD1000000000001 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				FB5A05022FD1000000000001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				023ABE3C2FCC2D4500522816 /* FoodBasket */,
@@ -82,6 +183,25 @@
 			productName = "Food Basket";
 			productReference = 023ABE3A2FCC2D4500522816 /* Food Basket.app */;
 			productType = "com.apple.product-type.application";
+		};
+		FB5A04012FD1000000000001 /* FoodBasketShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FB5A06032FD1000000000001 /* Build configuration list for PBXNativeTarget "FoodBasketShareExtension" */;
+			buildPhases = (
+				FB5A03012FD1000000000001 /* Sources */,
+				FB5A03022FD1000000000001 /* Frameworks */,
+				FB5A03032FD1000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FoodBasketShareExtension;
+			packageProductDependencies = (
+			);
+			productName = FoodBasketShareExtension;
+			productReference = FB5A01012FD1000000000001 /* FoodBasketShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -96,10 +216,24 @@
 					023ABE392FCC2D4500522816 = {
 						CreatedOnToolsVersion = 26.5;
 						SystemCapabilities = {
+							com.apple.ApplicationGroups = {
+								enabled = 1;
+							};
 							com.apple.BackgroundModes = {
 								enabled = 1;
 							};
 							com.apple.Push = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
+					};
+					FB5A04012FD1000000000001 = {
+						CreatedOnToolsVersion = 26.5;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups = {
 								enabled = 1;
 							};
 							com.apple.iCloud = {
@@ -124,12 +258,20 @@
 			projectRoot = "";
 			targets = (
 				023ABE392FCC2D4500522816 /* Food Basket */,
+				FB5A04012FD1000000000001 /* FoodBasketShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		023ABE382FCC2D4500522816 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FB5A03032FD1000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -146,7 +288,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FB5A03012FD1000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FB5A02022FD1000000000001 /* ShareViewController.swift in Sources */,
+				FB5A02032FD1000000000001 /* FoodBasket/Data/FoodBasketSharedContainer.swift in Sources */,
+				FB5A02042FD1000000000001 /* FoodBasket/Data/FoodBasketModelContainer.swift in Sources */,
+				FB5A02052FD1000000000001 /* FoodBasket/Data/FoodBasketSchema.swift in Sources */,
+				FB5A02062FD1000000000001 /* FoodBasket/Data/SeedData.swift in Sources */,
+				FB5A02072FD1000000000001 /* FoodBasket/Data/Models/Ingredient.swift in Sources */,
+				FB5A02082FD1000000000001 /* FoodBasket/Data/Models/Recipe.swift in Sources */,
+				FB5A02092FD1000000000001 /* FoodBasket/Data/Models/WeekPlan.swift in Sources */,
+				FB5A020A2FD1000000000001 /* FoodBasket/Shared/Extensions/String+NormalizedLookupValue.swift in Sources */,
+				FB5A020B2FD1000000000001 /* FoodBasket/Shared/Extensions/UIImage+RecipePhotoData.swift in Sources */,
+				FB5A020C2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift in Sources */,
+				FB5A020D2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		FB5A05022FD1000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FB5A04012FD1000000000001 /* FoodBasketShareExtension */;
+			targetProxy = FB5A05012FD1000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		023ABE452FCC2D4700522816 /* Debug */ = {
@@ -342,6 +511,66 @@
 			};
 			name = Release;
 		};
+		FB5A06012FD1000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = FoodBasketShareExtension/FoodBasketShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 282EVX55YN;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FoodBasketShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.logan.FoodBasket.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FB5A06022FD1000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = FoodBasketShareExtension/FoodBasketShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 282EVX55YN;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = FoodBasketShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.logan.FoodBasket.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -359,6 +588,15 @@
 			buildConfigurations = (
 				023ABE482FCC2D4700522816 /* Debug */,
 				023ABE492FCC2D4700522816 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FB5A06032FD1000000000001 /* Build configuration list for PBXNativeTarget "FoodBasketShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FB5A06012FD1000000000001 /* Debug */,
+				FB5A06022FD1000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

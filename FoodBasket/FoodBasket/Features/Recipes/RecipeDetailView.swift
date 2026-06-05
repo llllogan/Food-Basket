@@ -16,7 +16,6 @@ struct RecipeDetailView: View {
     @State private var showingEditRecipe = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
-    @State private var editedIngredientLine: RecipeIngredient?
     @State private var substitutedIngredientLine: RecipeIngredient?
 
     private var ingredientLines: [RecipeIngredient] {
@@ -58,13 +57,6 @@ struct RecipeDetailView: View {
                             } label: {
                                 Label("Remove", systemImage: "xmark")
                             }
-
-                            Button {
-                                editedIngredientLine = line
-                            } label: {
-                                Label("Edit Details", systemImage: "slider.horizontal.3")
-                            }
-                            .tint(.blue)
 
                             Button {
                                 substitutedIngredientLine = line
@@ -130,14 +122,6 @@ struct RecipeDetailView: View {
                 AddIngredientToRecipeView(recipe: recipe)
             }
         }
-        .sheet(item: $editedIngredientLine) { line in
-            NavigationStack {
-                EditRecipeIngredientDetailsView(line: line) {
-                    deleteIngredientLine(line)
-                    editedIngredientLine = nil
-                }
-            }
-        }
         .sheet(item: $substitutedIngredientLine) { line in
             NavigationStack {
                 SubstituteRecipeIngredientView(line: line)
@@ -161,7 +145,10 @@ struct RecipeDetailView: View {
     private func ingredientLineRow(for line: RecipeIngredient) -> some View {
         if let ingredient = line.ingredient {
             NavigationLink {
-                IngredientDetailView(ingredient: ingredient)
+                IngredientDetailView(
+                    ingredient: ingredient,
+                    recipeIngredientLine: line
+                )
             } label: {
                 ingredientLineContent(for: line)
             }

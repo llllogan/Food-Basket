@@ -134,6 +134,9 @@ struct RecipeURLImportView: View {
 
             do {
                 _ = try await RecipeURLRecipeImporter.importRecipe(from: importURL, in: modelContext)
+                IngredientEnrichmentScheduler.schedulePendingIngredientEnrichment(
+                    in: modelContext
+                )
                 dismiss()
             } catch {
                 guard !Task.isCancelled, activeImportURL == importURL else { return }

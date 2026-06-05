@@ -10,7 +10,27 @@ import SwiftData
 
 @MainActor
 enum IngredientEnrichmentRunner {
+    static func enrichPendingIngredients(
+        in modelContext: ModelContext
+    ) async {
+        let ingredients = (try? modelContext.fetch(
+            FetchDescriptor<Ingredient>(sortBy: [SortDescriptor(\.name)])
+        )) ?? []
+        let pendingIngredients = ingredients.filter {
+            $0.category == nil || $0.photoData == nil
+        }
+
+        await enrichIngredients(pendingIngredients, in: modelContext)
+    }
+
     static func enrichCreatedIngredients(
+        _ ingredients: [Ingredient],
+        in modelContext: ModelContext
+    ) async {
+        await enrichIngredients(ingredients, in: modelContext)
+    }
+
+    private static func enrichIngredients(
         _ ingredients: [Ingredient],
         in modelContext: ModelContext
     ) async {

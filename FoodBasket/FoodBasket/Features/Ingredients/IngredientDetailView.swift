@@ -14,11 +14,20 @@ struct IngredientDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @Bindable var ingredient: Ingredient
+    let recipeIngredientLine: RecipeIngredient?
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
     @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
     @State private var isGeneratingImage = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
+
+    init(
+        ingredient: Ingredient,
+        recipeIngredientLine: RecipeIngredient? = nil
+    ) {
+        self.ingredient = ingredient
+        self.recipeIngredientLine = recipeIngredientLine
+    }
 
     var body: some View {
         Form {
@@ -36,6 +45,13 @@ struct IngredientDetailView: View {
                     .onChange(of: ingredient.name) {
                         ingredient.normalizedName = ingredient.name.normalizedLookupValue
                     }
+            }
+
+            if let recipeIngredientLine {
+                RecipeIngredientDetailFields(
+                    ingredient: ingredient,
+                    line: recipeIngredientLine
+                )
             }
 
             Section {
@@ -132,6 +148,33 @@ struct IngredientDetailView: View {
         }
 
         showingCamera = true
+    }
+}
+
+private struct RecipeIngredientDetailFields: View {
+    let ingredient: Ingredient
+    @Bindable var line: RecipeIngredient
+
+    var body: some View {
+        Section {
+            
+            TextField("Preparation instructions", text: $line.preparationMethod, axis: .vertical)
+                .textInputAutocapitalization(.sentences)
+                .lineLimit(2...4)
+            HStack {
+                TextField("Amount", value: $line.quantity, format: .number)
+                    .keyboardType(.decimalPad)
+
+                if let symbol = ingredient.unit?.symbol, !symbol.isEmpty {
+                    Text(symbol)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            
+        } header: {
+            Text("Recipe Details")
+        }
     }
 }
 
