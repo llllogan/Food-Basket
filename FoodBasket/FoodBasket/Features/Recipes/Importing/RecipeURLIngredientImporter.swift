@@ -381,9 +381,38 @@ enum RecipeURLIngredientImporter {
 }
 
 enum RecipeIngredientLineParser {
+    private nonisolated static let supportedUnits = [
+        "tablespoons", "tablespoon", "tbsp", "tbsps", "tbsp.",
+        "teaspoons", "teaspoon", "tsp", "tsps", "tsp.",
+        "cups", "cup",
+        "fluid ounces", "fluid ounce", "fl oz", "fl. oz.",
+        "ounces", "ounce", "oz", "oz.",
+        "pounds", "pound", "lbs", "lb", "lbs.", "lb.",
+        "grams", "gram", "g",
+        "kilograms", "kilogram", "kg",
+        "milliliters", "millilitres", "milliliter", "millilitre", "ml",
+        "liters", "litres", "liter", "litre", "l",
+        "packages", "package", "packets", "packet",
+        "cans", "can", "jars", "jar",
+        "cloves", "clove",
+        "bunches", "bunch",
+        "sprigs", "sprig",
+        "slices", "slice",
+        "pieces", "piece",
+        "sticks", "stick",
+        "pinches", "pinch",
+        "dashes", "dash",
+        "punnets", "punnet",
+        "fillets", "fillet",
+        "heads", "head",
+        "stalks", "stalk",
+        "bottles", "bottle",
+        "handfuls", "handful"
+    ]
+
     nonisolated static func parse(_ rawLine: String) -> ImportedRecipeIngredient {
         let line = rawLine.cleanedIngredientLine
-        let parseLine = line.normalizedFractionsForParsing()
+        let parseLine = normalizedLineForParsing(line)
         let amount = leadingAmount(in: parseLine)
         var remainder = parseLine
 
@@ -396,6 +425,10 @@ enum RecipeIngredientLineParser {
         if let unit {
             remainder = String(remainder.dropFirst(unit.text.count))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if amount != nil {
+            remainder = removingLeadingAlternateAmount(from: remainder)
         }
 
         let ingredientName = normalizedIngredientName(
@@ -415,8 +448,18 @@ enum RecipeIngredientLineParser {
         )
     }
 
+    private nonisolated static func normalizedLineForParsing(_ line: String) -> String {
+        line
+            .normalizedFractionsForParsing()
+            .separatingCompactIngredientUnits(supportedUnits)
+    }
+
     private nonisolated static func leadingAmount(in line: String) -> ParsedIngredientAmount? {
-        let normalizedLine = line.normalizedFractionsForParsing()
+        let normalizedLine = normalizedLineForParsing(line)
+        if let alternateMeasurementAmount = leadingAmountBeforeAlternateMeasurement(in: normalizedLine) {
+            return alternateMeasurementAmount
+        }
+
         let patterns = [
             #"^((?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?)(?:\s*(?:-|–|to)\s*(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?))?\s*(?:\([^)]+\))?)(?=\s|$)"#,
             #"^((?:a|an)\s+(?:few|pinch|handful|sprinkle))\b"#,
@@ -440,35 +483,41 @@ enum RecipeIngredientLineParser {
         return nil
     }
 
-    private nonisolated static func leadingUnit(in line: String) -> ParsedIngredientUnit? {
-        let units = [
-            "tablespoons", "tablespoon", "tbsp", "tbsps", "tbsp.",
-            "teaspoons", "teaspoon", "tsp", "tsps", "tsp.",
-            "cups", "cup",
-            "ounces", "ounce", "oz", "oz.",
-            "pounds", "pound", "lbs", "lb", "lbs.", "lb.",
-            "grams", "gram", "g",
-            "kilograms", "kilogram", "kg",
-            "milliliters", "millilitres", "milliliter", "millilitre", "ml",
-            "liters", "litres", "liter", "litre", "l",
-            "packages", "package", "packets", "packet",
-            "cans", "can", "jars", "jar",
-            "cloves", "clove",
-            "bunches", "bunch",
-            "sprigs", "sprig",
-            "slices", "slice",
-            "pieces", "piece",
-            "pinches", "pinch",
-            "dashes", "dash",
-            "punnets", "punnet",
-            "fillets", "fillet",
-            "heads", "head",
-            "stalks", "stalk",
-            "bottles", "bottle",
-            "handfuls", "handful"
-        ]
+    private nonisolated static func leadingAmountBeforeAlternateMeasurement(
+        in line: String
+    ) -> ParsedIngredientAmount? {
+        let pattern = #"^(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
 
-        for unit in units {
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = regex.firstMatch(in: line, range: range),
+              let firstAmountRange = Range(match.range(at: 1), in: line),
+              let alternateAmountRange = Range(match.range(at: 2), in: line),
+              let alternateQuantity = Double(line[alternateAmountRange]),
+              alternateQuantity > 16 else {
+            return nil
+        }
+
+        let remainderAfterAlternateAmount = String(line[alternateAmountRange.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard leadingUnit(in: remainderAfterAlternateAmount) != nil else {
+            return nil
+        }
+
+        let amountText = String(line[firstAmountRange])
+        let quantity = Double(amountText)
+        return ParsedIngredientAmount(
+            matchedText: amountText,
+            text: displayAmountText(from: amountText, quantity: quantity),
+            quantity: quantity,
+            includesPackageSize: false
+        )
+    }
+
+    private nonisolated static func leadingUnit(in line: String) -> ParsedIngredientUnit? {
+        for unit in supportedUnits {
             let escapedUnit = NSRegularExpression.escapedPattern(for: unit)
             guard let match = firstRegexMatch(pattern: #"^(\#(escapedUnit))\b"#, in: line) else {
                 continue
@@ -478,6 +527,30 @@ enum RecipeIngredientLineParser {
         }
 
         return nil
+    }
+
+    private nonisolated static func removingLeadingAlternateAmount(from rawRemainder: String) -> String {
+        let trimmedRemainder = rawRemainder.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedRemainder.hasPrefix("/") else {
+            return rawRemainder
+        }
+
+        var alternateRemainder = String(trimmedRemainder.dropFirst())
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let alternateAmount = leadingAmount(in: alternateRemainder) else {
+            return rawRemainder
+        }
+
+        alternateRemainder = String(alternateRemainder.dropFirst(alternateAmount.matchedText.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let alternateUnit = leadingUnit(in: alternateRemainder) else {
+            return rawRemainder
+        }
+
+        return String(alternateRemainder.dropFirst(alternateUnit.text.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private nonisolated static func normalizedIngredientName(
@@ -713,6 +786,25 @@ private extension String {
             with: "$1 $2",
             options: .regularExpression
         )
+
+        return value
+    }
+
+    nonisolated func separatingCompactIngredientUnits(_ units: [String]) -> String {
+        var value = self
+        let compactUnits = units
+            .filter { !$0.contains(" ") }
+            .sorted { $0.count > $1.count }
+        let amountPattern = #"(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?)"#
+
+        for unit in compactUnits {
+            let escapedUnit = NSRegularExpression.escapedPattern(for: unit)
+            value = value.replacingOccurrences(
+                of: #"(?i)(\#(amountPattern))(\#(escapedUnit))\b"#,
+                with: "$1 $2",
+                options: .regularExpression
+            )
+        }
 
         return value
     }

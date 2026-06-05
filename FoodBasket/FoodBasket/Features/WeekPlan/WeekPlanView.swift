@@ -13,6 +13,7 @@ import UIKit
 struct WeekPlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
+    @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
     @Query(sort: [
         SortDescriptor(\PlannedMealPortion.dayOffset),
         SortDescriptor(\PlannedMealPortion.sortOrder),
@@ -72,6 +73,10 @@ struct WeekPlanView: View {
         Set(shoppingListLines.map(\.categoryName)).sorted {
             $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
         }
+    }
+
+    private var ingredientsByID: [UUID: Ingredient] {
+        Dictionary(uniqueKeysWithValues: ingredients.map { ($0.id, $0) })
     }
 
     private var rememberedReminderList: ReminderListOption? {
@@ -245,13 +250,14 @@ struct WeekPlanView: View {
         ForEach(shoppingListCategories, id: \.self) { category in
             Section(category) {
                 ForEach(shoppingListLines.filter { $0.categoryName == category }) { line in
-                    HStack(spacing: 12) {
-                        IngredientThumbnailView(photoData: line.photoData)
-
-                        Text(line.ingredientName)
-                        Spacer()
-                        Text(line.formattedAmount)
-                            .foregroundStyle(.secondary)
+                    if let ingredient = ingredientsByID[line.ingredientID] {
+                        NavigationLink {
+                            IngredientDetailView(ingredient: ingredient)
+                        } label: {
+                            groceryRow(for: line)
+                        }
+                    } else {
+                        groceryRow(for: line)
                     }
                 }
             }
@@ -276,6 +282,17 @@ struct WeekPlanView: View {
             Text(plannedMeal.recipe?.name ?? "Deleted recipe")
             Spacer()
             Text(plannedMeal.formattedMultiplier)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func groceryRow(for line: ShoppingListLine) -> some View {
+        HStack(spacing: 12) {
+            IngredientThumbnailView(photoData: line.photoData)
+
+            Text(line.ingredientName)
+            Spacer()
+            Text(line.formattedAmount)
                 .foregroundStyle(.secondary)
         }
     }

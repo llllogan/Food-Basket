@@ -17,6 +17,11 @@ struct IngredientDetailView: View {
     let recipeIngredientLine: RecipeIngredient?
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
     @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
+    @State private var newCategoryName = ""
+    @State private var newUnitName = ""
+    @State private var newUnitSymbol = ""
+    @State private var showingNewCategoryAlert = false
+    @State private var showingNewUnitAlert = false
     @State private var isGeneratingImage = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
@@ -55,7 +60,7 @@ struct IngredientDetailView: View {
                 )
             }
 
-            Section {
+            Section("Category") {
                 Picker("Category", selection: $ingredient.category) {
                     Text("None").tag(nil as IngredientCategory?)
 
@@ -63,6 +68,16 @@ struct IngredientDetailView: View {
                         Text(category.name).tag(category as IngredientCategory?)
                     }
                 }
+
+                Button {
+                    newCategoryName = ""
+                    showingNewCategoryAlert = true
+                } label: {
+                    Text("New Category")
+                }
+            }
+
+            Section("Unit") {
                 Picker("Unit", selection: $ingredient.unit) {
                     Text("None").tag(nil as MeasurementUnit?)
 
@@ -70,8 +85,14 @@ struct IngredientDetailView: View {
                         Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
                     }
                 }
-            } header: {
-                Text("Details")
+
+                Button {
+                    newUnitName = ""
+                    newUnitSymbol = ""
+                    showingNewUnitAlert = true
+                } label: {
+                    Text("New Unit")
+                }
             }
             
             Section {
@@ -109,6 +130,27 @@ struct IngredientDetailView: View {
                 }
             }
         }
+        .alert("New Category", isPresented: $showingNewCategoryAlert) {
+            TextField("Category name", text: $newCategoryName)
+
+            Button("Add") {
+                createCategoryFromAlert()
+            }
+            .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert("New Unit", isPresented: $showingNewUnitAlert) {
+            TextField("Unit name", text: $newUnitName)
+            TextField("Symbol (mL, tsp)", text: $newUnitSymbol)
+
+            Button("Add") {
+                createUnitFromAlert()
+            }
+            .disabled(newUnitName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            Button("Cancel", role: .cancel) {}
+        }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker { image in
                 ingredient.photoData = image.recipePhotoData
@@ -121,6 +163,47 @@ struct IngredientDetailView: View {
         } message: {
             Text("A camera is not available on this device.")
         }
+    }
+
+    private func createCategoryFromAlert() {
+        let normalizedName = newCategoryName.normalizedLookupValue
+        guard !normalizedName.isEmpty else { return }
+
+        let category = categories.first {
+            $0.normalizedName == normalizedName
+        } ?? IngredientCategory(
+            name: newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        if category.modelContext == nil {
+            modelContext.insert(category)
+        }
+
+        ingredient.category = category
+        try? modelContext.save()
+    }
+
+    private func createUnitFromAlert() {
+        let normalizedName = newUnitName.normalizedLookupValue
+        guard !normalizedName.isEmpty else { return }
+
+        let unit = units.first {
+            $0.normalizedName == normalizedName
+        } ?? {
+            let trimmedName = newUnitName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedSymbol = newUnitSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
+            return MeasurementUnit(
+                name: trimmedName,
+                symbol: trimmedSymbol.isEmpty ? trimmedName : trimmedSymbol
+            )
+        }()
+
+        if unit.modelContext == nil {
+            modelContext.insert(unit)
+        }
+
+        ingredient.unit = unit
+        try? modelContext.save()
     }
 
     private func regenerateImage() {

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
@@ -21,7 +22,11 @@ struct RecipesView: View {
     @State private var searchText = ""
 
     private var importURL: URL? {
-        let trimmedURL = importURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        recipeURL(from: importURLText)
+    }
+
+    private func recipeURL(from text: String) -> URL? {
+        let trimmedURL = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedURL.isEmpty else { return nil }
 
         if trimmedURL.contains("://") {
@@ -79,21 +84,19 @@ struct RecipesView: View {
             )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingImportRecipeAlert = true
-                    } label: {
-                        if isImportingRecipe {
-                            ProgressView()
-                        } else {
-                            Label("Import Recipe", systemImage: "link.badge.plus")
+                    Menu {
+                        Button {
+                            showingAddRecipe = true
+                        } label: {
+                            Label("Add Manually", systemImage: "square.and.pencil")
                         }
-                    }
-                    .disabled(isImportingRecipe)
-                }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddRecipe = true
+                        Button {
+                            showingImportRecipeAlert = true
+                        } label: {
+                            Label("Add from URL", systemImage: "link.badge.plus")
+                        }
+                        .disabled(isImportingRecipe)
                     } label: {
                         Label("Add Recipe", systemImage: "plus")
                     }
@@ -112,10 +115,15 @@ struct RecipesView: View {
 
                 Button("Cancel", role: .cancel) {}
 
+                Button("Paste from Clipboard") {
+                    pasteRecipeURLFromClipboard()
+                }
+                .disabled(isImportingRecipe)
+
                 Button("Import") {
                     importRecipeFromURL()
                 }
-                .disabled(importURL == nil)
+                .disabled(importURL == nil || isImportingRecipe)
             } message: {
                 Text("Paste a recipe URL.")
             }
@@ -131,6 +139,22 @@ struct RecipesView: View {
     }
 
     private func importRecipeFromURL() {
+        importRecipe(from: importURL)
+    }
+
+    private func pasteRecipeURLFromClipboard() {
+        guard let clipboardText = UIPasteboard.general.string,
+              let clipboardURL = recipeURL(from: clipboardText) else {
+            importErrorMessage = "The clipboard does not contain a recipe URL."
+            showingImportError = true
+            return
+        }
+
+        importURLText = clipboardText
+        importRecipe(from: clipboardURL)
+    }
+
+    private func importRecipe(from importURL: URL?) {
         guard let importURL else { return }
 
         runningImportTask?.cancel()
