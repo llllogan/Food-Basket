@@ -20,7 +20,7 @@ struct IngredientDetailImageView: View {
                     .scaledToFit()
             } else {
                 ZStack {
-                    Color(uiColor: .secondarySystemBackground)
+                    Color(uiColor: .tertiarySystemFill)
 
                     Image(systemName: "carrot")
                         .font(.largeTitle)

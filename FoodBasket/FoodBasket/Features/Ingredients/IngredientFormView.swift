@@ -7,7 +7,6 @@
 
 import SwiftData
 import SwiftUI
-import FoundationModels
 import ImagePlayground
 import UIKit
 
@@ -20,7 +19,6 @@ struct IngredientFormView: View {
     @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
 
     let onSave: ((Ingredient) -> Void)?
-    private let categoryModel: SystemLanguageModel
 
     @State private var name = ""
     @State private var defaultQuantity = 1.0
@@ -46,7 +44,6 @@ struct IngredientFormView: View {
 
     init(onSave: ((Ingredient) -> Void)? = nil) {
         self.onSave = onSave
-        categoryModel = SystemLanguageModel(useCase: .contentTagging)
     }
 
     private var categorySelection: Binding<UUID?> {
@@ -86,8 +83,7 @@ struct IngredientFormView: View {
     }
 
     private var canSuggestCategory: Bool {
-        guard case .available = categoryModel.availability else { return false }
-        return true
+        IngredientCategorySuggestionService.isAvailable
     }
 
     private var canGenerateIngredientImage: Bool {
@@ -427,58 +423,12 @@ struct IngredientFormView: View {
             try await Task.sleep(nanoseconds: 700_000_000)
             try Task.checkCancellation()
 
-            let selectableCategoryNames = categories
-                .map(\.name)
-                .filter { $0.normalizedLookupValue != "other" }
-            guard !selectableCategoryNames.isEmpty else {
-                categorySuggestionState = .idle
-                return
-            }
-
-            let request = IngredientCategorySuggestionRequest(
-                ingredientName: ingredientName,
-                existingCategories: selectableCategoryNames
-            )
-            let responseSchema = try IngredientCategorySuggestion.responseSchema(
-                categoryNames: selectableCategoryNames
-            )
-            let session = LanguageModelSession(
-                model: categoryModel,
-                instructions: """
-                Categorize grocery ingredients for a recipe app.
-                Choose the most specific existing category from the allowed category names.
-                Do not choose Other automatically. Other means the user should choose manually.
-                Common examples:
-                - Produce: fruit, vegetables, herbs, fresh mushrooms.
-                - Meat: beef, chicken, pork, lamb, fish, seafood.
-                - Dairy: milk, cheese, yoghurt, cream, butter, eggs.
-                - Pantry: rice, pasta, flour, sugar, spices, oils, sauces, canned food, dry goods.
-                - Bakery: bread, rolls, wraps, pastry, cakes.
-                - Frozen: frozen vegetables, frozen fruit, ice cream, frozen meals.
-                If none of the allowed categories fit, say the user should choose.
-                Never invent or create a category.
-                """
-            )
-            let response = try await session.respond(
-                schema: responseSchema,
-                options: GenerationOptions(
-                    sampling: .greedy,
-                    temperature: 0,
-                    maximumResponseTokens: 80
-                )
-            ) {
-                """
-                Categorize this ingredient request.
-                If you choose an existing category, copy one category name exactly from existingCategories into categoryName.
-                """
-                request
-            }
-
-            try Task.checkCancellation()
             applyCategorySuggestion(
-                try IngredientCategorySuggestion(response.content),
-                for: ingredientName,
-                fallbackCategoryName: inferredCategoryName(for: ingredientName)
+                await IngredientCategorySuggestionService.suggestedCategory(
+                    for: ingredientName,
+                    from: categories
+                ),
+                for: ingredientName
             )
         } catch is CancellationError {
         } catch {
@@ -487,9 +437,8 @@ struct IngredientFormView: View {
     }
 
     private func applyCategorySuggestion(
-        _ suggestion: IngredientCategorySuggestion,
-        for ingredientName: String,
-        fallbackCategoryName: String?
+        _ category: IngredientCategory?,
+        for ingredientName: String
     ) {
         guard
             trimmedName == ingredientName,
@@ -497,14 +446,8 @@ struct IngredientFormView: View {
         else {
             return
         }
-        let suggestedCategoryName = fallbackCategoryName ?? suggestion.categoryName
 
-        guard
-            suggestedCategoryName != IngredientCategorySuggestion.userShouldChooseValue,
-            let category = categories.first(where: {
-                $0.normalizedName == suggestedCategoryName.normalizedLookupValue
-            })
-        else {
+        guard let category else {
             categorySuggestionState = .idle
             return
         }
@@ -512,69 +455,6 @@ struct IngredientFormView: View {
         selectedCategoryID = category.id
         suggestedCategoryID = category.id
         categorySuggestionState = .suggested(category.name)
-    }
-
-    private func inferredCategoryName(for ingredientName: String) -> String? {
-        let name = ingredientName.normalizedLookupValue
-        let categoryKeywords: [(category: String, keywords: [String])] = [
-            (
-                "Produce",
-                [
-                    "apple", "apricot", "asparagus", "avocado", "banana", "bean",
-                    "beetroot", "berry", "broccoli", "cabbage", "capsicum", "carrot",
-                    "cauliflower", "celery", "chilli", "coriander", "corn", "cucumber",
-                    "eggplant", "garlic", "grape", "herb", "kale", "leek", "lettuce",
-                    "lime", "mango", "mushroom", "onion", "orange", "parsley", "pear",
-                    "peas", "potato", "pumpkin", "spinach", "tomato", "zucchini"
-                ]
-            ),
-            (
-                "Meat",
-                [
-                    "bacon", "beef", "chicken", "chorizo", "fish", "ham", "lamb",
-                    "mince", "pork", "prawn", "salmon", "sausage", "seafood", "steak",
-                    "turkey", "veal"
-                ]
-            ),
-            (
-                "Dairy",
-                [
-                    "butter", "cheese", "cream", "egg", "feta", "milk", "mozzarella",
-                    "parmesan", "ricotta", "sour cream", "yoghurt", "yogurt"
-                ]
-            ),
-            (
-                "Bakery",
-                [
-                    "bagel", "baguette", "bread", "bun", "cake", "croissant", "muffin",
-                    "pastry", "pita", "roll", "sourdough", "tortilla", "wrap"
-                ]
-            ),
-            (
-                "Frozen",
-                [
-                    "frozen", "ice cream"
-                ]
-            ),
-            (
-                "Pantry",
-                [
-                    "baking powder", "can", "canned", "cereal", "chickpea", "coconut milk",
-                    "flour", "honey", "lentil", "noodle", "oil", "pasta", "pepper",
-                    "rice", "salt", "sauce", "spice", "stock", "sugar", "tuna", "vinegar"
-                ]
-            )
-        ]
-
-        guard let inferred = categoryKeywords.first(where: { _, keywords in
-            keywords.contains { name.contains($0) }
-        })?.category else {
-            return nil
-        }
-
-        return categories.first {
-            $0.normalizedName == inferred.normalizedLookupValue
-        }?.name
     }
 
     private func generateDraftImageIfNeeded() async {
@@ -707,55 +587,10 @@ private struct IngredientPhotoActionButton: View {
     }
 }
 
-@Generable
-private struct IngredientCategorySuggestionRequest {
-    @Guide(description: "The ingredient name the person entered.")
-    var ingredientName: String
-
-    @Guide(description: "The existing category names available in the app.")
-    var existingCategories: [String]
-
-    init(ingredientName: String, existingCategories: [String]) {
-        self.ingredientName = ingredientName
-        self.existingCategories = existingCategories
-    }
-}
-
 private enum CategorySuggestionState: Equatable {
     case idle
     case generating
     case suggested(String)
-}
-
-private struct IngredientCategorySuggestion {
-    static let userShouldChooseValue = "USER_SHOULD_CHOOSE"
-
-    let categoryName: String
-
-    init(_ content: GeneratedContent) throws {
-        categoryName = try content.value(String.self, forProperty: "categoryName")
-    }
-
-    static func responseSchema(categoryNames: [String]) throws -> GenerationSchema {
-        let categorySchema = DynamicGenerationSchema(
-            name: "CategoryName",
-            description: "One exact allowed category name, or \(userShouldChooseValue) when the user should pick manually. Do not choose Other.",
-            anyOf: categoryNames + [userShouldChooseValue]
-        )
-        let rootSchema = DynamicGenerationSchema(
-            name: "IngredientCategorySuggestion",
-            description: "The best category for a grocery ingredient.",
-            properties: [
-                DynamicGenerationSchema.Property(
-                    name: "categoryName",
-                    description: "Copy one value exactly from the allowed category names.",
-                    schema: categorySchema
-                )
-            ]
-        )
-
-        return try GenerationSchema(root: rootSchema, dependencies: [])
-    }
 }
 
 #Preview("New Ingredient") {

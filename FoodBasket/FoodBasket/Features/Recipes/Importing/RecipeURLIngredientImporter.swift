@@ -449,8 +449,8 @@ enum RecipeIngredientLineParser {
             "pounds", "pound", "lbs", "lb", "lbs.", "lb.",
             "grams", "gram", "g",
             "kilograms", "kilogram", "kg",
-            "milliliters", "milliliter", "ml",
-            "liters", "liter", "l",
+            "milliliters", "millilitres", "milliliter", "millilitre", "ml",
+            "liters", "litres", "liter", "litre", "l",
             "packages", "package", "packets", "packet",
             "cans", "can", "jars", "jar",
             "cloves", "clove",
@@ -459,6 +459,12 @@ enum RecipeIngredientLineParser {
             "slices", "slice",
             "pieces", "piece",
             "pinches", "pinch",
+            "dashes", "dash",
+            "punnets", "punnet",
+            "fillets", "fillet",
+            "heads", "head",
+            "stalks", "stalk",
+            "bottles", "bottle",
             "handfuls", "handful"
         ]
 
