@@ -50,7 +50,8 @@ struct IngredientDetailView: View {
             if let recipeIngredientLine {
                 RecipeIngredientDetailFields(
                     ingredient: ingredient,
-                    line: recipeIngredientLine
+                    line: recipeIngredientLine,
+                    recipeName: recipeIngredientLine.recipe?.name
                 )
             }
 
@@ -154,6 +155,16 @@ struct IngredientDetailView: View {
 private struct RecipeIngredientDetailFields: View {
     let ingredient: Ingredient
     @Bindable var line: RecipeIngredient
+    let recipeName: String?
+
+    private var sectionTitle: String {
+        let trimmedRecipeName = recipeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmedRecipeName.isEmpty else {
+            return "Recipe Details"
+        }
+
+        return "Details in \(trimmedRecipeName)"
+    }
 
     var body: some View {
         Section {
@@ -173,7 +184,7 @@ private struct RecipeIngredientDetailFields: View {
 
             
         } header: {
-            Text("Recipe Details")
+            Text(sectionTitle)
         }
     }
 }

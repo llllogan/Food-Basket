@@ -12,8 +12,24 @@ struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @State private var showingAddRecipe = false
-    @State private var showingImportRecipe = false
+    @State private var showingImportRecipeAlert = false
+    @State private var importURLText = ""
+    @State private var isImportingRecipe = false
+    @State private var importErrorMessage: String?
+    @State private var showingImportError = false
+    @State private var runningImportTask: Task<Void, Never>?
     @State private var searchText = ""
+
+    private var importURL: URL? {
+        let trimmedURL = importURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty else { return nil }
+
+        if trimmedURL.contains("://") {
+            return URL(string: trimmedURL)
+        }
+
+        return URL(string: "https://\(trimmedURL)")
+    }
 
     private var filteredRecipes: [Recipe] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -64,10 +80,15 @@ struct RecipesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showingImportRecipe = true
+                        showingImportRecipeAlert = true
                     } label: {
-                        Label("Import Recipe", systemImage: "link.badge.plus")
+                        if isImportingRecipe {
+                            ProgressView()
+                        } else {
+                            Label("Import Recipe", systemImage: "link.badge.plus")
+                        }
                     }
+                    .disabled(isImportingRecipe)
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -83,12 +104,67 @@ struct RecipesView: View {
                     RecipeFormView()
                 }
             }
-            .sheet(isPresented: $showingImportRecipe) {
-                NavigationStack {
-                    RecipeURLImportView()
+            .alert("Import Recipe", isPresented: $showingImportRecipeAlert) {
+                TextField("https://example.com/recipe", text: $importURLText)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                Button("Cancel", role: .cancel) {}
+
+                Button("Import") {
+                    importRecipeFromURL()
                 }
+                .disabled(importURL == nil)
+            } message: {
+                Text("Paste a recipe URL.")
+            }
+            .alert("Import Failed", isPresented: $showingImportError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(importErrorMessage ?? "The recipe could not be imported.")
+            }
+            .onDisappear {
+                runningImportTask?.cancel()
             }
         }
+    }
+
+    private func importRecipeFromURL() {
+        guard let importURL else { return }
+
+        runningImportTask?.cancel()
+        isImportingRecipe = true
+        importErrorMessage = nil
+
+        runningImportTask = Task { @MainActor in
+            defer {
+                isImportingRecipe = false
+            }
+
+            do {
+                _ = try await RecipeURLRecipeImporter.importRecipe(
+                    from: importURL,
+                    in: modelContext
+                )
+                importURLText = ""
+                IngredientEnrichmentScheduler.schedulePendingIngredientEnrichment(
+                    in: modelContext
+                )
+            } catch {
+                guard !Task.isCancelled else { return }
+                importErrorMessage = localizedMessage(for: error)
+                showingImportError = true
+            }
+        }
+    }
+
+    private func localizedMessage(for error: Error) -> String {
+        if let error = error as? LocalizedError, let message = error.errorDescription {
+            return message
+        }
+
+        return error.localizedDescription
     }
 
     private func deleteRecipes(at offsets: IndexSet) {

@@ -630,7 +630,7 @@ private extension String {
                 options: .regularExpression
             )
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-*• "))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-*• )]}"))
     }
 
     nonisolated func trimmingHTMLCommentWrapper() -> String {
@@ -718,11 +718,23 @@ private extension String {
     }
 
     nonisolated func removingParentheticalNotes() -> String {
-        replacingOccurrences(
+        var value = replacingOccurrences(
             of: #"\s*\([^)]*\)"#,
             with: "",
             options: .regularExpression
         )
+
+        if let danglingOpeningParenthesis = value.firstIndex(of: "(") {
+            value = String(value[..<danglingOpeningParenthesis])
+        }
+
+        return value
+            .replacingOccurrences(
+                of: #"\s+\)"#,
+                with: "",
+                options: .regularExpression
+            )
+            .cleanedIngredientLine
     }
 
     nonisolated func removingPreparationClause() -> String {
