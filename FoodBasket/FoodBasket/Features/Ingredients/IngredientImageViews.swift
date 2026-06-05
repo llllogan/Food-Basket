@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import SwiftData
 
 struct IngredientDetailImageView: View {
     let photoData: Data?
@@ -46,7 +47,7 @@ struct IngredientThumbnailView: View {
                     .scaledToFill()
             } else {
                 ZStack {
-                    Color(uiColor: .secondarySystemBackground)
+                    Color(uiColor: .tertiarySystemFill)
 
                     Image(systemName: "carrot")
                         .foregroundStyle(.secondary)
@@ -66,4 +67,13 @@ struct IngredientThumbnailView: View {
 #Preview("Ingredient Thumbnail") {
     IngredientThumbnailView(photoData: nil)
         .padding()
+}
+
+#Preview("Add Ingredient to Recipe") {
+    let previewData = PreviewData()
+
+    NavigationStack {
+        AddIngredientToRecipeView(recipe: previewData.recipe)
+    }
+    .modelContainer(previewData.container)
 }

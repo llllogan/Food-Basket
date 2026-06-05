@@ -18,6 +18,10 @@ struct AddIngredientToRecipeView: View {
     @State private var showingNewIngredient = false
     @State private var searchText = ""
 
+    private var hasSearchText: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var filteredIngredients: [Ingredient] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedSearchText.isEmpty else { return ingredients }
@@ -30,11 +34,15 @@ struct AddIngredientToRecipeView: View {
     var body: some View {
         List {
             Section("Ingredients") {
-                if ingredients.isEmpty {
+                if hasSearchText && filteredIngredients.isEmpty {
+                    Button {
+                        showNewIngredient()
+                    } label: {
+                        AddNewIngredientRowLabel()
+                    }
+                    .buttonStyle(.plain)
+                } else if ingredients.isEmpty {
                     Text("Create your first ingredient.")
-                        .foregroundStyle(.secondary)
-                } else if filteredIngredients.isEmpty {
-                    Text("No ingredients found.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(filteredIngredients) { ingredient in
@@ -70,8 +78,7 @@ struct AddIngredientToRecipeView: View {
 
             ToolbarItem(placement: .bottomBar) {
                 Button("Create New Ingredient") {
-                    createdIngredientForAmount = nil
-                    showingNewIngredient = true
+                    showNewIngredient()
                 }
             }
         }
@@ -93,6 +100,30 @@ struct AddIngredientToRecipeView: View {
                     showingNewIngredient = false
                 }
             }
+        }
+    }
+
+    private func showNewIngredient() {
+        createdIngredientForAmount = nil
+        showingNewIngredient = true
+    }
+}
+
+private struct AddNewIngredientRowLabel: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Color(uiColor: .tertiarySystemFill)
+
+                Image(systemName: "plus")
+                    .font(.title3.weight(.semibold))
+            }
+            .frame(width: 58, height: 58)
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .accessibilityHidden(true)
+
+            Text("Add new ingredient")
+                .foregroundStyle(.primary)
         }
     }
 }
