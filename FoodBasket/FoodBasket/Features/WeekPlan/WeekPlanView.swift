@@ -21,12 +21,18 @@ struct WeekPlanView: View {
 
     @State private var selectedMode: WeekPlanDisplayMode
     @State private var showingAddMeal = false
+    @State private var calendarExporter = CalendarEventExporter()
+    @State private var calendarLists: [CalendarListOption] = []
+    @State private var showingCalendarListPicker = false
+    @State private var isUpdatingCalendar = false
     @State private var remindersExporter = RemindersExporter()
     @State private var reminderLists: [ReminderListOption] = []
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
     @State private var isAddGroceriesTipPresented = false
     @State private var exportAlert: ReminderExportAlert?
+    @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
+    @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
 
@@ -69,6 +75,12 @@ struct WeekPlanView: View {
         ShoppingListLine.makeLines(for: currentPlan)
     }
 
+    private var calendarMealPortions: [PlannedMealPortion] {
+        currentPlanPortions.filter {
+            $0.plannedMeal?.recipe != nil
+        }
+    }
+
     private var shoppingListCategories: [String] {
         Set(shoppingListLines.map(\.categoryName)).sorted {
             $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
@@ -77,6 +89,18 @@ struct WeekPlanView: View {
 
     private var ingredientsByID: [UUID: Ingredient] {
         Dictionary(uniqueKeysWithValues: ingredients.map { ($0.id, $0) })
+    }
+
+    private var rememberedCalendar: CalendarListOption? {
+        guard !lastCalendarID.isEmpty, !lastCalendarName.isEmpty else {
+            return nil
+        }
+
+        return CalendarListOption(
+            id: lastCalendarID,
+            title: lastCalendarName,
+            sourceTitle: ""
+        )
     }
 
     private var rememberedReminderList: ReminderListOption? {
@@ -108,11 +132,42 @@ struct WeekPlanView: View {
             .toolbar {
                 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        
+                    Menu {
+                        Button {
+                            prepareCalendarSelection()
+                        } label: {
+                            Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                        }
+                        .disabled(calendarMealPortions.isEmpty)
+
+                        if let rememberedCalendar {
+                            Divider()
+
+                            Button {
+                                addCalendarEvents(to: rememberedCalendar)
+                            } label: {
+                                Text("Add to \(rememberedCalendar.title)")
+                                Text("recently used calendar")
+                                Image(systemName: "plus")
+                            }
+                            .disabled(calendarMealPortions.isEmpty)
+
+                            Button(role: .destructive) {
+                                clearCalendarEvents(from: rememberedCalendar)
+                            } label: {
+                                Text("Clear \(rememberedCalendar.title)")
+                                Text("remove this week's Food Basket events")
+                                Image(systemName: "trash")
+                            }
+                        }
                     } label: {
-                        Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                        if isUpdatingCalendar {
+                            ProgressView()
+                        } else {
+                            Label("Update Calendar", systemImage: "calendar.badge.plus")
+                        }
                     }
+                    .disabled(isUpdatingCalendar)
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -140,7 +195,7 @@ struct WeekPlanView: View {
                                 clearReminders(from: rememberedReminderList)
                             } label: {
                                 Text("Clear \(rememberedReminderList.title)")
-                                Text("remove items automatically added")
+                                Text("remove Food Basket items")
                                 Image(systemName: "trash")
                             }
                         }
@@ -175,6 +230,13 @@ struct WeekPlanView: View {
             .sheet(isPresented: $showingAddMeal) {
                 NavigationStack {
                     AddPlannedMealView(weekStarting: planWeekStarting)
+                }
+            }
+            .sheet(isPresented: $showingCalendarListPicker) {
+                NavigationStack {
+                    CalendarListPickerView(calendars: calendarLists) { calendar in
+                        addCalendarEvents(to: calendar)
+                    }
                 }
             }
             .sheet(isPresented: $showingReminderListPicker) {
@@ -316,6 +378,75 @@ struct WeekPlanView: View {
         }
     }
 
+    private func prepareCalendarSelection() {
+        isUpdatingCalendar = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingCalendar = false
+            }
+
+            do {
+                calendarLists = try await calendarExporter.availableCalendars()
+
+                guard !calendarLists.isEmpty else {
+                    throw CalendarExportError.noWritableCalendars
+                }
+
+                showingCalendarListPicker = true
+            } catch {
+                showCalendarError(error)
+            }
+        }
+    }
+
+    private func addCalendarEvents(to calendar: CalendarListOption) {
+        isUpdatingCalendar = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingCalendar = false
+            }
+
+            do {
+                let eventCount = try await calendarExporter.export(
+                    calendarMealPortions,
+                    weekStarting: calendarWeekStarting,
+                    dayCount: WeekPlanCalendar.dayCount,
+                    to: calendar
+                )
+                remember(calendar)
+                exportAlert = ReminderExportAlert(
+                    title: "Meals Added to Calendar",
+                    message: "\(eventCount) meal plan events were added to \(calendar.title)."
+                )
+            } catch {
+                showCalendarError(error, for: calendar)
+            }
+        }
+    }
+
+    private func clearCalendarEvents(from calendar: CalendarListOption) {
+        isUpdatingCalendar = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingCalendar = false
+            }
+
+            do {
+                let removedCount = try await calendarExporter
+                    .clearAutomaticallyAddedEvents(from: calendar)
+                exportAlert = ReminderExportAlert(
+                    title: "Calendar Events Cleared",
+                    message: "\(removedCount) automatically added events were removed from \(calendar.title)."
+                )
+            } catch {
+                showCalendarError(error, for: calendar)
+            }
+        }
+    }
+
     private func prepareReminderListSelection() {
         isUpdatingReminders = true
 
@@ -381,15 +512,39 @@ struct WeekPlanView: View {
         }
     }
 
+    private func remember(_ calendar: CalendarListOption) {
+        lastCalendarID = calendar.id
+        lastCalendarName = calendar.title
+    }
+
     private func remember(_ list: ReminderListOption) {
         lastRemindersListID = list.id
         lastRemindersListName = list.title
+    }
+
+    private func forgetRememberedCalendar(ifMatching calendar: CalendarListOption) {
+        guard calendar.id == lastCalendarID else { return }
+        lastCalendarID = ""
+        lastCalendarName = ""
     }
 
     private func forgetRememberedList(ifMatching list: ReminderListOption) {
         guard list.id == lastRemindersListID else { return }
         lastRemindersListID = ""
         lastRemindersListName = ""
+    }
+
+    private func showCalendarError(_ error: Error, for calendar: CalendarListOption? = nil) {
+        if let calendar,
+           let calendarError = error as? CalendarExportError,
+           calendarError == .calendarUnavailable {
+            forgetRememberedCalendar(ifMatching: calendar)
+        }
+
+        exportAlert = ReminderExportAlert(
+            title: "Unable to Update Calendar",
+            message: error.localizedDescription
+        )
     }
 
     private func showRemindersError(_ error: Error, for list: ReminderListOption? = nil) {

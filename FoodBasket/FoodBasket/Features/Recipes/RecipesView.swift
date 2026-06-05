@@ -12,6 +12,8 @@ import UIKit
 struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
+    @Binding private var selectedRecipeID: UUID?
+    @State private var navigationPath = NavigationPath()
     @State private var showingAddRecipe = false
     @State private var showingImportRecipeAlert = false
     @State private var importURLText = ""
@@ -20,6 +22,10 @@ struct RecipesView: View {
     @State private var showingImportError = false
     @State private var runningImportTask: Task<Void, Never>?
     @State private var searchText = ""
+
+    init(selectedRecipeID: Binding<UUID?> = .constant(nil)) {
+        _selectedRecipeID = selectedRecipeID
+    }
 
     private var importURL: URL? {
         recipeURL(from: importURLText)
@@ -46,7 +52,7 @@ struct RecipesView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             List {
                 if recipes.isEmpty {
                     Text("Add a recipe to get started.")
@@ -57,9 +63,7 @@ struct RecipesView: View {
                 }
 
                 ForEach(filteredRecipes) { recipe in
-                    NavigationLink {
-                        RecipeDetailView(recipe: recipe)
-                    } label: {
+                    NavigationLink(value: recipe.id) {
                         HStack(spacing: 12) {
                             RecipeThumbnailView(photoData: recipe.photoData)
 
@@ -73,6 +77,9 @@ struct RecipesView: View {
                     }
                 }
                 .onDelete(perform: deleteRecipes)
+            }
+            .navigationDestination(for: UUID.self) { recipeID in
+                recipeDestination(for: recipeID)
             }
             .listStyle(.plain)
             .navigationTitle("Recipes")
@@ -135,7 +142,32 @@ struct RecipesView: View {
             .onDisappear {
                 runningImportTask?.cancel()
             }
+            .onAppear {
+                openSelectedRecipeIfNeeded()
+            }
+            .onChange(of: selectedRecipeID) { _, _ in
+                openSelectedRecipeIfNeeded()
+            }
         }
+    }
+
+    @ViewBuilder
+    private func recipeDestination(for recipeID: UUID) -> some View {
+        if let recipe = recipes.first(where: { $0.id == recipeID }) {
+            RecipeDetailView(recipe: recipe)
+        } else {
+            Text("Recipe not found.")
+                .foregroundStyle(.secondary)
+                .navigationTitle("Recipe")
+        }
+    }
+
+    private func openSelectedRecipeIfNeeded() {
+        guard let selectedRecipeID else { return }
+
+        navigationPath = NavigationPath()
+        navigationPath.append(selectedRecipeID)
+        self.selectedRecipeID = nil
     }
 
     private func importRecipeFromURL() {

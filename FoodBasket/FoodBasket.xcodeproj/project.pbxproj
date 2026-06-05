@@ -451,6 +451,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FoodBasket/Info.plist;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Add and remove meal plan events in Calendar.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of recipes and finished meals.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Add and remove shopping list items in Reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -487,6 +488,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FoodBasket/Info.plist;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Add and remove meal plan events in Calendar.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of recipes and finished meals.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Add and remove shopping list items in Reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

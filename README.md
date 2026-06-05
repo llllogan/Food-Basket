@@ -1,6 +1,6 @@
 # Food Basket
 
-Food Basket is an iOS meal-planning app for managing recipes, planning dinners for the current week, and exporting a generated shopping list to Reminders.
+Food Basket is an iOS meal-planning app for managing recipes, planning dinners for the current week, exporting a generated shopping list to Reminders, and adding meal plans to Calendar.
 
 ## Features
 
@@ -10,6 +10,7 @@ Food Basket is an iOS meal-planning app for managing recipes, planning dinners f
 - Add recipes to the current week's meal plan and open their recipe details directly from the weekly view.
 - Generate a categorized shopping list from the current meal plan.
 - Export shopping-list items to a selected Reminders list and remove items previously added by Food Basket.
+- Export meal-plan days to a selected Calendar as all-day events with recipe deep links.
 - Use Siri shortcuts to read the current dinner plan or add groceries to the remembered Reminders list.
 
 ## Project Structure
@@ -22,6 +23,7 @@ FoodBasket/FoodBasket/
 |-- Data/                SwiftData container, models, seed data, and previews
 |-- Features/
 |   |-- Ingredients/     Ingredient list, detail, form, imagery, and image generation
+|   |-- Calendars/       Calendar export service, picker, and supporting models
 |   |-- Recipes/         Recipe list, detail, form, ingredient selection, and photos
 |   |-- Reminders/       Reminders export service, picker, and supporting models
 |   |-- Siri/            App intents, shortcuts, and snippet views
@@ -38,7 +40,7 @@ FoodBasket/FoodBasket/
 - iOS 26.5 or later
 - A physical device for camera capture and device-specific integrations
 
-Food Basket requests camera access when taking meal photos and Reminders access when exporting shopping-list items. Ingredient image generation uses Apple's Image Playground framework when available.
+Food Basket requests camera access when taking meal photos, Calendar access when exporting meal-plan events, and Reminders access when exporting shopping-list items. Ingredient image generation uses Apple's Image Playground framework when available.
 
 ## iCloud Sync
 
