@@ -32,7 +32,7 @@ struct IngredientFormView: View {
     @State private var locallyCreatedUnits: [MeasurementUnit] = []
     @State private var categorySuggestionState: CategorySuggestionState = .idle
     @State private var suggestedCategoryID: UUID?
-    @State private var categoryWasManuallyChanged = false
+    @State private var manuallySelectedCategoryName: String?
     @State private var didFinish = false
 
     init(onSave: ((Ingredient) -> Void)? = nil) {
@@ -236,7 +236,7 @@ struct IngredientFormView: View {
         selectedCategoryID = categoryID
 
         if manually {
-            categoryWasManuallyChanged = true
+            manuallySelectedCategoryName = trimmedName.normalizedLookupValue
             suggestedCategoryID = nil
             categorySuggestionState = .idle
         }
@@ -356,7 +356,8 @@ struct IngredientFormView: View {
         }
 
         let ingredientName = trimmedName
-        guard !ingredientName.isEmpty, !categoryWasManuallyChanged else {
+        let normalizedIngredientName = ingredientName.normalizedLookupValue
+        guard !ingredientName.isEmpty, manuallySelectedCategoryName != normalizedIngredientName else {
             categorySuggestionState = .idle
             return
         }
@@ -435,7 +436,10 @@ struct IngredientFormView: View {
         for ingredientName: String,
         fallbackCategoryName: String?
     ) {
-        guard trimmedName == ingredientName, !categoryWasManuallyChanged else {
+        guard
+            trimmedName == ingredientName,
+            manuallySelectedCategoryName != ingredientName.normalizedLookupValue
+        else {
             return
         }
         let suggestedCategoryName = fallbackCategoryName ?? suggestion.categoryName
