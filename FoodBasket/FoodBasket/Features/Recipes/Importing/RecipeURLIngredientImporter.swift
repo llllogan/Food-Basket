@@ -7,10 +7,26 @@
 
 import Foundation
 
+struct ImportedRecipeIngredient: Equatable, Sendable {
+    let rawLine: String
+    let amountText: String?
+    let quantity: Double?
+    let unitText: String?
+    let name: String
+    let preparationMethod: String?
+}
+
 struct ImportedRecipeIngredients: Equatable, Sendable {
     let sourceURL: URL
     let title: String?
-    let ingredientLines: [String]
+    let recipeYield: String?
+    let cookingTimeMinutes: Int?
+    let instructions: [String]
+    let ingredients: [ImportedRecipeIngredient]
+
+    nonisolated var ingredientLines: [String] {
+        ingredients.map(\.rawLine)
+    }
 }
 
 enum RecipeURLIngredientImportError: LocalizedError, Equatable {
@@ -76,7 +92,10 @@ enum RecipeURLIngredientImporter {
         return ImportedRecipeIngredients(
             sourceURL: sourceURL,
             title: titleFromHTML(in: html),
-            ingredientLines: ingredientLines
+            recipeYield: nil,
+            cookingTimeMinutes: nil,
+            instructions: [],
+            ingredients: ingredientLines.map(RecipeIngredientLineParser.parse)
         )
     }
 
@@ -187,7 +206,10 @@ enum RecipeURLIngredientImporter {
         return ImportedRecipeIngredients(
             sourceURL: sourceURL,
             title: firstStringValue(for: ["name", "headline"], in: dictionary),
-            ingredientLines: ingredientLines
+            recipeYield: recipeYield(from: dictionary["recipeYield"] ?? dictionary["yield"]),
+            cookingTimeMinutes: durationMinutes(from: dictionary["totalTime"]),
+            instructions: instructionLines(from: dictionary["recipeInstructions"]),
+            ingredients: ingredientLines.map(RecipeIngredientLineParser.parse)
         )
     }
 
@@ -259,6 +281,85 @@ enum RecipeURLIngredientImporter {
         return nil
     }
 
+    private nonisolated static func recipeYield(from object: Any?) -> String? {
+        switch object {
+        case let string as String:
+            return string.cleanedIngredientLine
+        case let number as NSNumber:
+            return number.stringValue
+        case let array as [Any]:
+            return array
+                .compactMap(recipeYield)
+                .joined(separator: ", ")
+                .nilIfEmpty
+        default:
+            return nil
+        }
+    }
+
+    private nonisolated static func durationMinutes(from object: Any?) -> Int? {
+        guard let duration = recipeYield(from: object) else { return nil }
+
+        let pattern = #"^P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let range = NSRange(duration.startIndex..<duration.endIndex, in: duration)
+        guard let match = regex.firstMatch(in: duration, range: range) else {
+            return nil
+        }
+
+        func value(at index: Int) -> Double {
+            guard match.range(at: index).location != NSNotFound,
+                  let range = Range(match.range(at: index), in: duration),
+                  let value = Double(duration[range]) else {
+                return 0
+            }
+
+            return value
+        }
+
+        let totalSeconds =
+            (value(at: 1) * 24 * 60 * 60) +
+            (value(at: 2) * 60 * 60) +
+            (value(at: 3) * 60) +
+            value(at: 4)
+
+        guard totalSeconds > 0 else { return nil }
+        return Int((totalSeconds / 60).rounded(.up))
+    }
+
+    private nonisolated static func instructionLines(from object: Any?) -> [String] {
+        switch object {
+        case let string as String:
+            return [string.cleanedIngredientLine].filter { !$0.isEmpty }
+        case let array as [Any]:
+            return array
+                .flatMap(instructionLines)
+                .normalizedIngredientLineList()
+        case let dictionary as [String: Any]:
+            var lines: [String] = []
+
+            if let text = firstStringValue(for: ["text"], in: dictionary) {
+                lines.append(text)
+            }
+
+            if let nestedObject = dictionary["itemListElement"] {
+                lines.append(contentsOf: instructionLines(from: nestedObject))
+            }
+
+            if lines.isEmpty,
+               let directionObject = dictionary["itemListElement"] ?? dictionary["item"] {
+                lines.append(contentsOf: instructionLines(from: directionObject))
+            }
+
+            return lines.normalizedIngredientLineList()
+        default:
+            return []
+        }
+    }
+
     private nonisolated static func regexMatches(pattern: String, in string: String) -> [String] {
         guard let regex = try? NSRegularExpression(
             pattern: pattern,
@@ -277,6 +378,220 @@ enum RecipeURLIngredientImporter {
             return String(string[matchRange])
         }
     }
+}
+
+enum RecipeIngredientLineParser {
+    nonisolated static func parse(_ rawLine: String) -> ImportedRecipeIngredient {
+        let line = rawLine.cleanedIngredientLine
+        let parseLine = line.normalizedFractionsForParsing()
+        let amount = leadingAmount(in: parseLine)
+        var remainder = parseLine
+
+        if let amount {
+            remainder = String(remainder.dropFirst(amount.matchedText.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let unit = leadingUnit(in: remainder)
+        if let unit {
+            remainder = String(remainder.dropFirst(unit.text.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let ingredientName = normalizedIngredientName(
+            from: remainder,
+            unit: unit?.text,
+            amountIncludesPackageSize: amount?.includesPackageSize == true
+        )
+        let preparationMethod = preparationMethod(from: remainder)
+
+        return ImportedRecipeIngredient(
+            rawLine: line,
+            amountText: amount?.text,
+            quantity: amount?.quantity,
+            unitText: unit?.text,
+            name: ingredientName.isEmpty ? line : ingredientName,
+            preparationMethod: preparationMethod
+        )
+    }
+
+    private nonisolated static func leadingAmount(in line: String) -> ParsedIngredientAmount? {
+        let normalizedLine = line.normalizedFractionsForParsing()
+        let patterns = [
+            #"^((?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?)(?:\s*(?:-|–|to)\s*(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?))?\s*(?:\([^)]+\))?)(?=\s|$)"#,
+            #"^((?:a|an)\s+(?:few|pinch|handful|sprinkle))\b"#,
+            #"^((?:a|an))\b"#
+        ]
+
+        for pattern in patterns {
+            guard let match = firstRegexMatch(pattern: pattern, in: normalizedLine) else {
+                continue
+            }
+
+            let quantity = quantity(from: match)
+            return ParsedIngredientAmount(
+                matchedText: match.cleanedIngredientLine,
+                text: displayAmountText(from: match, quantity: quantity),
+                quantity: quantity,
+                includesPackageSize: match.contains("(") && match.contains(")")
+            )
+        }
+
+        return nil
+    }
+
+    private nonisolated static func leadingUnit(in line: String) -> ParsedIngredientUnit? {
+        let units = [
+            "tablespoons", "tablespoon", "tbsp", "tbsps", "tbsp.",
+            "teaspoons", "teaspoon", "tsp", "tsps", "tsp.",
+            "cups", "cup",
+            "ounces", "ounce", "oz", "oz.",
+            "pounds", "pound", "lbs", "lb", "lbs.", "lb.",
+            "grams", "gram", "g",
+            "kilograms", "kilogram", "kg",
+            "milliliters", "milliliter", "ml",
+            "liters", "liter", "l",
+            "packages", "package", "packets", "packet",
+            "cans", "can", "jars", "jar",
+            "cloves", "clove",
+            "bunches", "bunch",
+            "sprigs", "sprig",
+            "slices", "slice",
+            "pieces", "piece",
+            "pinches", "pinch",
+            "handfuls", "handful"
+        ]
+
+        for unit in units {
+            let escapedUnit = NSRegularExpression.escapedPattern(for: unit)
+            guard let match = firstRegexMatch(pattern: #"^(\#(escapedUnit))\b"#, in: line) else {
+                continue
+            }
+
+            return ParsedIngredientUnit(text: String(line.prefix(match.count)).cleanedIngredientLine)
+        }
+
+        return nil
+    }
+
+    private nonisolated static func normalizedIngredientName(
+        from rawRemainder: String,
+        unit: String?,
+        amountIncludesPackageSize: Bool
+    ) -> String {
+        var name = rawRemainder
+            .removingParentheticalNotes()
+            .removingPreparationClause()
+            .cleanedIngredientLine
+            .removingLeadingDescriptors()
+            .removingTrailingDescriptors()
+
+        if amountIncludesPackageSize,
+           let unit,
+           ["package", "packages"].contains(unit.normalizedLookupValue),
+           !name.localizedCaseInsensitiveContains("package") {
+            name = "\(name) \(unit)"
+        }
+
+        return name.cleanedIngredientLine
+    }
+
+    private nonisolated static func preparationMethod(from rawRemainder: String) -> String? {
+        rawRemainder
+            .preparationClause()
+            .cleanedIngredientLine
+            .nilIfEmpty
+    }
+
+    private nonisolated static func quantity(from rawAmount: String) -> Double? {
+        let amount = rawAmount
+            .normalizedFractionsForParsing()
+            .replacingOccurrences(
+                of: #"\([^)]+\)"#,
+                with: "",
+                options: .regularExpression
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let firstAmount = amount
+            .components(separatedBy: " to ")
+            .first?
+            .components(separatedBy: "-")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let firstAmount else { return nil }
+
+        if firstAmount == "a" || firstAmount == "an" {
+            return 1
+        }
+
+        let parts = firstAmount
+            .split(separator: " ")
+            .map(String.init)
+
+        if parts.count == 2,
+           let whole = Double(parts[0]),
+           let fraction = fractionValue(from: parts[1]) {
+            return whole + fraction
+        }
+
+        if let fraction = fractionValue(from: firstAmount) {
+            return fraction
+        }
+
+        return Double(firstAmount)
+    }
+
+    private nonisolated static func displayAmountText(from rawAmount: String, quantity: Double?) -> String {
+        let cleanedAmount = rawAmount.cleanedIngredientLine
+
+        guard let quantity,
+              !cleanedAmount.contains("("),
+              !cleanedAmount.contains("-"),
+              !cleanedAmount.localizedCaseInsensitiveContains(" to ") else {
+            return cleanedAmount
+        }
+
+        return quantity.formatted(.number.precision(.fractionLength(0...3)))
+    }
+
+    private nonisolated static func fractionValue(from string: String) -> Double? {
+        let parts = string.split(separator: "/")
+        guard parts.count == 2,
+              let numerator = Double(parts[0]),
+              let denominator = Double(parts[1]),
+              denominator != 0 else {
+            return nil
+        }
+
+        return numerator / denominator
+    }
+
+    private nonisolated static func firstRegexMatch(pattern: String, in string: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let range = NSRange(string.startIndex..<string.endIndex, in: string)
+        guard let match = regex.firstMatch(in: string, range: range),
+              let matchRange = Range(match.range(at: 1), in: string) else {
+            return nil
+        }
+
+        return String(string[matchRange])
+    }
+}
+
+private struct ParsedIngredientAmount {
+    let matchedText: String
+    let text: String
+    let quantity: Double?
+    let includesPackageSize: Bool
+}
+
+private struct ParsedIngredientUnit {
+    let text: String
 }
 
 private extension Array where Element == String {
@@ -337,6 +652,7 @@ private extension String {
     nonisolated func decodingHTMLEntities() -> String {
         var decoded = self
             .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "\u{00a0}", with: " ")
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&quot;", with: #"""#)
             .replacingOccurrences(of: "&#39;", with: "'")
@@ -366,5 +682,89 @@ private extension String {
         }
 
         return decoded
+    }
+
+    nonisolated func normalizedFractionsForParsing() -> String {
+        var value = self
+            .replacingOccurrences(of: "\u{00bc}", with: "1/4")
+            .replacingOccurrences(of: "\u{00bd}", with: "1/2")
+            .replacingOccurrences(of: "\u{00be}", with: "3/4")
+            .replacingOccurrences(of: "\u{2153}", with: "1/3")
+            .replacingOccurrences(of: "\u{2154}", with: "2/3")
+            .replacingOccurrences(of: "\u{2155}", with: "1/5")
+            .replacingOccurrences(of: "\u{2156}", with: "2/5")
+            .replacingOccurrences(of: "\u{2157}", with: "3/5")
+            .replacingOccurrences(of: "\u{2158}", with: "4/5")
+            .replacingOccurrences(of: "\u{2159}", with: "1/6")
+            .replacingOccurrences(of: "\u{215a}", with: "5/6")
+            .replacingOccurrences(of: "\u{215b}", with: "1/8")
+            .replacingOccurrences(of: "\u{215c}", with: "3/8")
+            .replacingOccurrences(of: "\u{215d}", with: "5/8")
+            .replacingOccurrences(of: "\u{215e}", with: "7/8")
+
+        value = value.replacingOccurrences(
+            of: #"(\d)(\d/\d)"#,
+            with: "$1 $2",
+            options: .regularExpression
+        )
+
+        return value
+    }
+
+    nonisolated func removingParentheticalNotes() -> String {
+        replacingOccurrences(
+            of: #"\s*\([^)]*\)"#,
+            with: "",
+            options: .regularExpression
+        )
+    }
+
+    nonisolated func removingPreparationClause() -> String {
+        let commaIndex = firstIndex(of: ",")
+        let semicolonIndex = firstIndex(of: ";")
+        let earliestIndex = [commaIndex, semicolonIndex]
+            .compactMap { $0 }
+            .min()
+
+        guard let earliestIndex else { return self }
+        return String(self[..<earliestIndex])
+    }
+
+    nonisolated func preparationClause() -> String {
+        let commaIndex = firstIndex(of: ",")
+        let semicolonIndex = firstIndex(of: ";")
+        let earliestIndex = [commaIndex, semicolonIndex]
+            .compactMap { $0 }
+            .min()
+
+        guard let earliestIndex else { return "" }
+        return String(self[index(after: earliestIndex)...])
+    }
+
+    nonisolated func removingLeadingDescriptors() -> String {
+        let descriptorPattern = #"^(?:long-grain|short-grain|medium-grain|finely|roughly|coarsely|thinly|thickly|fresh|freshly|large|small|medium)\s+"#
+
+        var value = self
+        while value.range(of: descriptorPattern, options: [.regularExpression, .caseInsensitive]) != nil {
+            value = value.replacingOccurrences(
+                of: descriptorPattern,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+        }
+
+        return value
+    }
+
+    nonisolated func removingTrailingDescriptors() -> String {
+        replacingOccurrences(
+            of: #"\s+(?:optional|for serving)$"#,
+            with: "",
+            options: [.regularExpression, .caseInsensitive]
+        )
+    }
+
+    nonisolated var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

@@ -8,7 +8,7 @@
 import Foundation
 
 extension String {
-    var normalizedLookupValue: String {
+    nonisolated var normalizedLookupValue: String {
         trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }

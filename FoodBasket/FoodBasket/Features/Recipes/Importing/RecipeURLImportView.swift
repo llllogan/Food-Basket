@@ -11,7 +11,7 @@ struct RecipeURLImportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var urlText = ""
-    @State private var importedIngredients: ImportedRecipeIngredients?
+    @State private var importedRecipe: ImportedRecipeIngredients?
     @State private var errorMessage: String?
     @State private var isLoading = false
 
@@ -57,10 +57,60 @@ struct RecipeURLImportView: View {
                 }
             }
 
-            if let importedIngredients {
-                Section(importedIngredients.title ?? "Ingredients") {
-                    ForEach(importedIngredients.ingredientLines, id: \.self) { ingredientLine in
-                        Text(ingredientLine)
+            if let importedRecipe {
+                Section("Recipe") {
+                    LabeledContent("Name", value: importedRecipe.title ?? "Unknown")
+                    LabeledContent("Yield", value: importedRecipe.recipeYield ?? "Unknown")
+                    LabeledContent(
+                        "Cooking time",
+                        value: importedRecipe.cookingTimeMinutes.map { "\($0) min" } ?? "Unknown"
+                    )
+                    LabeledContent("Ingredients", value: "\(importedRecipe.ingredients.count)")
+                    LabeledContent("Instructions", value: "\(importedRecipe.instructions.count)")
+                }
+
+                Section("Parsed Ingredients") {
+                    ForEach(importedRecipe.ingredients, id: \.rawLine) { ingredient in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(ingredient.name)
+                                .font(.headline)
+
+                            HStack(spacing: 8) {
+                                if let amountText = ingredient.amountText {
+                                    Text("Amount: \(amountText)")
+                                }
+
+                                if let unitText = ingredient.unitText {
+                                    Text("Unit: \(unitText)")
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                            if let preparationMethod = ingredient.preparationMethod {
+                                Text("Preparation: \(preparationMethod)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text(ingredient.rawLine)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+
+                if !importedRecipe.instructions.isEmpty {
+                    Section("Instructions") {
+                        ForEach(Array(importedRecipe.instructions.enumerated()), id: \.offset) { index, instruction in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Step \(index + 1)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Text(instruction)
+                            }
+                        }
                     }
                 }
             }
@@ -81,7 +131,7 @@ struct RecipeURLImportView: View {
 
         isLoading = true
         errorMessage = nil
-        importedIngredients = nil
+        importedRecipe = nil
 
         Task {
             defer {
@@ -89,7 +139,7 @@ struct RecipeURLImportView: View {
             }
 
             do {
-                importedIngredients = try await RecipeURLIngredientImporter.importRecipe(from: importURL)
+                importedRecipe = try await RecipeURLIngredientImporter.importRecipe(from: importURL)
             } catch {
                 errorMessage = localizedMessage(for: error)
             }

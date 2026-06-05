@@ -168,7 +168,15 @@ struct RecipeDetailView: View {
         HStack(spacing: 12) {
             IngredientThumbnailView(photoData: line.ingredient?.photoData)
 
-            Text(line.ingredient?.name ?? "Deleted ingredient")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.ingredient?.name ?? "Deleted ingredient")
+
+                if !line.trimmedPreparationMethod.isEmpty {
+                    Text(line.trimmedPreparationMethod)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Spacer()
 
@@ -208,6 +216,10 @@ struct RecipeDetailView: View {
 }
 
 private extension RecipeIngredient {
+    var trimmedPreparationMethod: String {
+        preparationMethod.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var formattedQuantity: String {
         let amount = quantity.formatted(.number.precision(.fractionLength(0...2)))
         guard let symbol = ingredient?.unit?.symbol, !symbol.isEmpty else {

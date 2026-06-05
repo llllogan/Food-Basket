@@ -15,6 +15,7 @@ struct AddIngredientAmountView: View {
     let ingredient: Ingredient
     let onAdd: () -> Void
     @State private var quantity: Double
+    @State private var preparationMethod = ""
 
     init(recipe: Recipe, ingredient: Ingredient, onAdd: @escaping () -> Void) {
         self.recipe = recipe
@@ -34,6 +35,12 @@ struct AddIngredientAmountView: View {
                 TextField("Quantity", value: $quantity, format: .number)
                     .keyboardType(.decimalPad)
             }
+
+            Section("Preparation Method") {
+                TextField("Diced, shredded, drained", text: $preparationMethod, axis: .vertical)
+                    .textInputAutocapitalization(.never)
+                    .lineLimit(2...4)
+            }
         }
         .navigationTitle("Select Amount")
         .navigationBarTitleDisplayMode(.inline)
@@ -50,6 +57,7 @@ struct AddIngredientAmountView: View {
     private func addIngredient() {
         let line = RecipeIngredient(
             quantity: quantity,
+            preparationMethod: preparationMethod.trimmingCharacters(in: .whitespacesAndNewlines),
             sortOrder: recipe.ingredientLines?.count ?? 0,
             ingredient: ingredient
         )
