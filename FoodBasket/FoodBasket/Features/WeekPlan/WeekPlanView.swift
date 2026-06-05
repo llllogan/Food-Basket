@@ -106,7 +106,16 @@ struct WeekPlanView: View {
             }
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        
+                    } label: {
+                        Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
                             prepareReminderListSelection()
@@ -121,7 +130,9 @@ struct WeekPlanView: View {
                             Button {
                                 addReminders(to: rememberedReminderList)
                             } label: {
-                                Label("Add to \(rememberedReminderList.title)", systemImage: "plus")
+                                Text("Add to \(rememberedReminderList.title)")
+                                Text("recently used list")
+                                Image(systemName: "plus")
                             }
                             .disabled(shoppingListLines.isEmpty)
 
@@ -137,7 +148,7 @@ struct WeekPlanView: View {
                         if isUpdatingReminders {
                             ProgressView()
                         } else {
-                            Label("Update Reminders", systemImage: "square.and.arrow.up")
+                            Label("Update Reminders", systemImage: "checklist")
                         }
                     }
                     .disabled(
@@ -148,7 +159,12 @@ struct WeekPlanView: View {
                         isPresented: $isAddGroceriesTipPresented,
                         arrowEdge: .top
                     )
+                }
+                
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
 
+                
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingAddMeal = true
                     } label: {
