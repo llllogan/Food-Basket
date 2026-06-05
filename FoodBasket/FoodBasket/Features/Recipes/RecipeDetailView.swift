@@ -16,9 +16,8 @@ struct RecipeDetailView: View {
     @State private var showingEditRecipe = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
-    @State private var showingCountEditor = false
     @State private var editedIngredientLine: RecipeIngredient?
-    @State private var editedQuantity = ""
+    @State private var substitutedIngredientLine: RecipeIngredient?
 
     private var ingredientLines: [RecipeIngredient] {
         (recipe.ingredientLines ?? []).sorted { $0.sortOrder < $1.sortOrder }
@@ -55,17 +54,24 @@ struct RecipeDetailView: View {
                         ingredientLineRow(for: line)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                modelContext.delete(line)
+                                deleteIngredientLine(line)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label("Remove", systemImage: "xmark")
                             }
 
                             Button {
-                                editCount(for: line)
+                                editedIngredientLine = line
                             } label: {
-                                Label("Edit Amount", systemImage: "numbers.rectangle.fill")
+                                Label("Edit Details", systemImage: "slider.horizontal.3")
                             }
-                            .tint(.cyan)
+                            .tint(.blue)
+
+                            Button {
+                                substitutedIngredientLine = line
+                            } label: {
+                                Label("Substitute", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                            .tint(.purple)
                         }
                     }
                 }
@@ -124,6 +130,19 @@ struct RecipeDetailView: View {
                 AddIngredientToRecipeView(recipe: recipe)
             }
         }
+        .sheet(item: $editedIngredientLine) { line in
+            NavigationStack {
+                EditRecipeIngredientDetailsView(line: line) {
+                    deleteIngredientLine(line)
+                    editedIngredientLine = nil
+                }
+            }
+        }
+        .sheet(item: $substitutedIngredientLine) { line in
+            NavigationStack {
+                SubstituteRecipeIngredientView(line: line)
+            }
+        }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker { image in
                 recipe.photoData = image.recipePhotoData
@@ -135,19 +154,6 @@ struct RecipeDetailView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("A camera is not available on this device.")
-        }
-        .alert("Change Count", isPresented: $showingCountEditor) {
-            TextField("Count", text: $editedQuantity)
-                .keyboardType(.decimalPad)
-
-            Button("Cancel", role: .cancel) {}
-
-            Button("Save") {
-                saveEditedCount()
-            }
-            .disabled(editedQuantityValue == nil)
-        } message: {
-            Text("Enter the amount needed for this recipe.")
         }
     }
 
@@ -185,26 +191,6 @@ struct RecipeDetailView: View {
         }
     }
 
-    private var editedQuantityValue: Double? {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-
-        let value = formatter.number(from: editedQuantity)?.doubleValue ?? Double(editedQuantity)
-        guard let value, value > 0 else { return nil }
-        return value
-    }
-
-    private func editCount(for line: RecipeIngredient) {
-        editedIngredientLine = line
-        editedQuantity = line.quantity.formatted(.number.precision(.fractionLength(0...2)))
-        showingCountEditor = true
-    }
-
-    private func saveEditedCount() {
-        guard let editedIngredientLine, let editedQuantityValue else { return }
-        editedIngredientLine.quantity = editedQuantityValue
-    }
-
     private func takePhoto() {
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
             showingCameraUnavailable = true
@@ -212,6 +198,13 @@ struct RecipeDetailView: View {
         }
 
         showingCamera = true
+    }
+
+    private func deleteIngredientLine(_ line: RecipeIngredient) {
+        recipe.ingredientLines?.removeAll { $0.id == line.id }
+        line.recipe?.ingredientLines?.removeAll { $0.id == line.id }
+        modelContext.delete(line)
+        try? modelContext.save()
     }
 }
 
