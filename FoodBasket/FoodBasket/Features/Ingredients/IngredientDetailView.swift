@@ -7,13 +7,18 @@
 
 import SwiftData
 import SwiftUI
+import ImagePlayground
+import UIKit
 
 struct IngredientDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @Bindable var ingredient: Ingredient
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
     @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
     @State private var isGeneratingImage = false
+    @State private var showingCamera = false
+    @State private var showingCameraUnavailable = false
 
     var body: some View {
         Form {
@@ -65,16 +70,38 @@ struct IngredientDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    regenerateImage()
+                    takePhoto()
                 } label: {
-                    if isGeneratingImage {
-                        ProgressView()
-                    } else {
-                        Label("Regenerate Image", systemImage: "wand.and.sparkles")
-                    }
+                    Label("Take Ingredient Photo", systemImage: "camera")
                 }
-                .disabled(isGeneratingImage)
             }
+
+            if supportsImagePlayground {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        regenerateImage()
+                    } label: {
+                        if isGeneratingImage {
+                            ProgressView()
+                        } else {
+                            Label("Regenerate Image", systemImage: "wand.and.sparkles")
+                        }
+                    }
+                    .disabled(isGeneratingImage)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraPicker { image in
+                ingredient.photoData = image.recipePhotoData
+                try? modelContext.save()
+            }
+            .ignoresSafeArea()
+        }
+        .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("A camera is not available on this device.")
         }
     }
 
@@ -95,6 +122,15 @@ struct IngredientDetailView: View {
             ingredient.photoData = photoData
             try? modelContext.save()
         }
+    }
+
+    private func takePhoto() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showingCameraUnavailable = true
+            return
+        }
+
+        showingCamera = true
     }
 }
 
