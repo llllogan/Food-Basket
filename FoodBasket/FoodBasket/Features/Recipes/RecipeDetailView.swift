@@ -52,16 +52,7 @@ struct RecipeDetailView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(ingredientLines) { line in
-                        HStack(spacing: 12) {
-                            IngredientThumbnailView(photoData: line.ingredient?.photoData)
-
-                            Text(line.ingredient?.name ?? "Deleted ingredient")
-
-                            Spacer()
-
-                            Text(line.formattedQuantity)
-                                .foregroundStyle(.secondary)
-                        }
+                        ingredientLineRow(for: line)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 modelContext.delete(line)
@@ -72,9 +63,9 @@ struct RecipeDetailView: View {
                             Button {
                                 editCount(for: line)
                             } label: {
-                                Label("Count", systemImage: "number")
+                                Label("Edit Amount", systemImage: "numbers.rectangle.fill")
                             }
-                            .tint(.blue)
+                            .tint(.cyan)
                         }
                     }
                 }
@@ -157,6 +148,32 @@ struct RecipeDetailView: View {
             .disabled(editedQuantityValue == nil)
         } message: {
             Text("Enter the amount needed for this recipe.")
+        }
+    }
+
+    @ViewBuilder
+    private func ingredientLineRow(for line: RecipeIngredient) -> some View {
+        if let ingredient = line.ingredient {
+            NavigationLink {
+                IngredientDetailView(ingredient: ingredient)
+            } label: {
+                ingredientLineContent(for: line)
+            }
+        } else {
+            ingredientLineContent(for: line)
+        }
+    }
+
+    private func ingredientLineContent(for line: RecipeIngredient) -> some View {
+        HStack(spacing: 12) {
+            IngredientThumbnailView(photoData: line.ingredient?.photoData)
+
+            Text(line.ingredient?.name ?? "Deleted ingredient")
+
+            Spacer()
+
+            Text(line.formattedQuantity)
+                .foregroundStyle(.secondary)
         }
     }
 
