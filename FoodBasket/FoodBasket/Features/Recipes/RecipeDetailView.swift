@@ -43,6 +43,48 @@ struct RecipeDetailView: View {
             }
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+            
+            HStack {
+                
+                /*
+                 The text colour on the first button should be normal
+                 The text colour of the stars should be yellow
+                 */
+                
+                Button {} label: {
+                    Text("Add to Grocery List")
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(.primary)
+                    
+                    /*
+                     If there is no default reminders list saved by this app, the buttn text should say 'Add to ...'
+                     Pressing the buttin in that state should show the reminders list picker sheet
+                     The user should be able to long press on the button which will show a menu
+                     That menu will have three buttons 1. Add to DEFAULT_LIST 2. Add to Reminders 3. Removed from DEFAULT LIST
+                     */
+                }
+                .buttonStyle(.bordered)
+                
+                Button {} label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "star")
+                        Image(systemName: "star")
+                        Image(systemName: "star")
+                        Image(systemName: "star.fill")
+                        Image(systemName: "star.fill")
+                    }
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity)
+                    
+                    /*
+                     The user should be able to click on this button to see a menu showing all 5 star options. This should change the sf symbols in the button and saved in SwiftData against the recipe
+                     */
+                }
+                .buttonStyle(.bordered)
+            }
+            .listRowSeparator(.hidden)
+            .padding(.bottom, -15)
 
             Section("Ingredients") {
                 if ingredientLines.isEmpty {
@@ -68,13 +110,11 @@ struct RecipeDetailView: View {
                     }
                 }
             }
-            .listRowBackground(Color.clear)
 
             Section("Method") {
                 Text(recipe.method.isEmpty ? "No method added." : recipe.method)
                     .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
             }
-            .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
