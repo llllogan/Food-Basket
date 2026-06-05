@@ -272,7 +272,10 @@ struct WeekPlanView: View {
         }
         .pickerStyle(.segmented)
         .controlSize(.large)
-        .glassEffect(.regular, in: .capsule)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial.opacity(0.9))
+        }
     }
 
     private func plannedMealRow(for plannedMeal: PlannedMeal) -> some View {
