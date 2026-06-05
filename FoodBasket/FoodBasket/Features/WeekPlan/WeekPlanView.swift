@@ -24,6 +24,8 @@ struct WeekPlanView: View {
     @State private var calendarExporter = CalendarEventExporter()
     @State private var calendarLists: [CalendarListOption] = []
     @State private var showingCalendarListPicker = false
+    @State private var syncCalendarLists: [CalendarListOption] = []
+    @State private var showingSyncCalendarPicker = false
     @State private var isUpdatingCalendar = false
     @State private var remindersExporter = RemindersExporter()
     @State private var reminderLists: [ReminderListOption] = []
@@ -33,6 +35,11 @@ struct WeekPlanView: View {
     @State private var exportAlert: ReminderExportAlert?
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
+    @AppStorage(CalendarSyncDefaults.isEnabledKey) private var syncToICal = false
+    @AppStorage(CalendarSyncDefaults.calendarIDKey) private var syncCalendarID = ""
+    @AppStorage(CalendarSyncDefaults.calendarNameKey) private var syncCalendarName = ""
+    @AppStorage(WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) private var removeMealsAtNewWeek = false
+    @AppStorage(WeekPlanAutomationDefaults.weekStartDayKey) private var weekStartDay = WeekStartDay.monday.rawValue
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
 
@@ -130,6 +137,32 @@ struct WeekPlanView: View {
         )
     }
 
+    private var selectedSyncCalendar: CalendarListOption? {
+        guard !syncCalendarID.isEmpty, !syncCalendarName.isEmpty else {
+            return nil
+        }
+
+        return CalendarListOption(
+            id: syncCalendarID,
+            title: syncCalendarName,
+            sourceTitle: ""
+        )
+    }
+
+    private var automaticCalendarSyncKey: String {
+        [
+            syncToICal ? "sync-on" : "sync-off",
+            syncCalendarID,
+            removeMealsAtNewWeek ? "cleanup-on" : "cleanup-off",
+            "\(weekStartDay)",
+            currentPlanPortions
+                .map {
+                    "\($0.id.uuidString):\($0.dayOffset):\($0.sortOrder):\($0.plannedMeal?.id.uuidString ?? ""):\($0.plannedMeal?.recipe?.id.uuidString ?? "")"
+                }
+                .joined(separator: "|"),
+        ].joined(separator: "#")
+    }
+
     private var rememberedReminderList: ReminderListOption? {
         guard !lastRemindersListID.isEmpty, !lastRemindersListName.isEmpty else {
             return nil
@@ -194,7 +227,7 @@ struct WeekPlanView: View {
                             Label("Update Calendar", systemImage: "calendar.badge.plus")
                         }
                     }
-                    .disabled(isUpdatingCalendar)
+                    .disabled(isUpdatingCalendar || syncToICal)
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -266,6 +299,17 @@ struct WeekPlanView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingSyncCalendarPicker) {
+                NavigationStack {
+                    CalendarListPickerView(calendars: syncCalendarLists) { calendar in
+                        rememberSyncCalendar(calendar)
+                        showingSyncCalendarPicker = false
+                        Task {
+                            await performCalendarAutomation()
+                        }
+                    }
+                }
+            }
             .sheet(isPresented: $showingReminderListPicker) {
                 NavigationStack {
                     ReminderListPickerView(lists: reminderLists) { list in
@@ -290,10 +334,14 @@ struct WeekPlanView: View {
                     in: modelContext
                 )
                 syncCalendarPortions(for: plan)
+                await performCalendarAutomation()
             }
             .task(id: portionSyncKey) {
                 guard let currentPlan else { return }
                 syncCalendarPortions(for: currentPlan)
+            }
+            .task(id: automaticCalendarSyncKey) {
+                await performCalendarAutomation()
             }
         }
     }
@@ -303,6 +351,8 @@ struct WeekPlanView: View {
         switch selectedMode {
         case .calendar:
             calendarRow
+            calendarSyncSettingsRows
+            weeklyResetSettingsRows
         case .list:
             mealRows
         case .groceryList:
@@ -318,6 +368,45 @@ struct WeekPlanView: View {
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
         .listRowSeparator(.hidden)
+    }
+
+    @ViewBuilder
+    private var calendarSyncSettingsRows: some View {
+        Section {
+            Toggle("Sync to iCal", isOn: $syncToICal)
+
+            if syncToICal {
+                Button {
+                    prepareSyncCalendarSelection()
+                } label: {
+                    HStack {
+                        Text("Calendar")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(syncCalendarName.isEmpty ? "Choose" : syncCalendarName)
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var weeklyResetSettingsRows: some View {
+        Section {
+            Toggle("Remove meals at the start of a new week", isOn: $removeMealsAtNewWeek)
+
+            if removeMealsAtNewWeek {
+                Picker("Week starts", selection: $weekStartDay) {
+                    ForEach(WeekStartDay.allCases) { day in
+                        Text(day.title).tag(day.rawValue)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -496,6 +585,28 @@ struct WeekPlanView: View {
         }
     }
 
+    private func prepareSyncCalendarSelection() {
+        isUpdatingCalendar = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingCalendar = false
+            }
+
+            do {
+                syncCalendarLists = try await calendarExporter.availableCalendars()
+
+                guard !syncCalendarLists.isEmpty else {
+                    throw CalendarExportError.noWritableCalendars
+                }
+
+                showingSyncCalendarPicker = true
+            } catch {
+                showCalendarError(error)
+            }
+        }
+    }
+
     private func addCalendarEvents(to calendar: CalendarListOption) {
         isUpdatingCalendar = true
 
@@ -613,6 +724,11 @@ struct WeekPlanView: View {
         lastCalendarName = calendar.title
     }
 
+    private func rememberSyncCalendar(_ calendar: CalendarListOption) {
+        syncCalendarID = calendar.id
+        syncCalendarName = calendar.title
+    }
+
     private func remember(_ list: ReminderListOption) {
         lastRemindersListID = list.id
         lastRemindersListName = list.title
@@ -622,6 +738,12 @@ struct WeekPlanView: View {
         guard calendar.id == lastCalendarID else { return }
         lastCalendarID = ""
         lastCalendarName = ""
+    }
+
+    private func forgetSyncCalendar(ifMatching calendar: CalendarListOption) {
+        guard calendar.id == syncCalendarID else { return }
+        syncCalendarID = ""
+        syncCalendarName = ""
     }
 
     private func forgetRememberedList(ifMatching list: ReminderListOption) {
@@ -641,6 +763,28 @@ struct WeekPlanView: View {
             title: "Unable to Update Calendar",
             message: error.localizedDescription
         )
+    }
+
+    private func performCalendarAutomation() async {
+        do {
+            _ = try WeekPlanAutomation.removeMealsAtStartOfNewWeekIfNeeded(in: modelContext)
+
+            guard syncToICal,
+                  let selectedSyncCalendar else {
+                return
+            }
+
+            _ = try await WeekPlanAutomation.syncCurrentWeekCalendar(
+                in: modelContext,
+                to: selectedSyncCalendar
+            )
+        } catch {
+            if let selectedSyncCalendar,
+               let calendarError = error as? CalendarExportError,
+               calendarError == .calendarUnavailable {
+                forgetSyncCalendar(ifMatching: selectedSyncCalendar)
+            }
+        }
     }
 
     private func showRemindersError(_ error: Error, for list: ReminderListOption? = nil) {
@@ -775,6 +919,158 @@ private enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
             "Meals"
         case .groceryList:
             "Grocery List"
+        }
+    }
+}
+
+enum WeekPlanAutomationDefaults {
+    static let removeMealsAtNewWeekKey = "removeMealsAtStartOfNewWeek"
+    static let weekStartDayKey = "mealCleanupWeekStartDay"
+}
+
+enum WeekStartDay: Int, CaseIterable, Identifiable {
+    case sunday = 1
+    case monday = 2
+    case tuesday = 3
+    case wednesday = 4
+    case thursday = 5
+    case friday = 6
+    case saturday = 7
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .sunday:
+            "Sunday"
+        case .monday:
+            "Monday"
+        case .tuesday:
+            "Tuesday"
+        case .wednesday:
+            "Wednesday"
+        case .thursday:
+            "Thursday"
+        case .friday:
+            "Friday"
+        case .saturday:
+            "Saturday"
+        }
+    }
+
+    func startOfWeek(containing date: Date, calendar: Calendar = .current) -> Date {
+        let startOfDay = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: startOfDay)
+        let daysSinceWeekStart = (weekday - rawValue + 7) % 7
+
+        return calendar.date(
+            byAdding: .day,
+            value: -daysSinceWeekStart,
+            to: startOfDay
+        ) ?? startOfDay
+    }
+}
+
+@MainActor
+enum WeekPlanAutomation {
+    static func runLaunchMaintenance(in modelContext: ModelContext) async {
+        do {
+            _ = try removeMealsAtStartOfNewWeekIfNeeded(in: modelContext)
+
+            guard UserDefaults.standard.bool(forKey: CalendarSyncDefaults.isEnabledKey),
+                  let selectedCalendar = CalendarSyncDefaults.selectedCalendar else {
+                return
+            }
+
+            _ = try await syncCurrentWeekCalendar(
+                in: modelContext,
+                to: selectedCalendar
+            )
+        } catch {
+            if let calendarError = error as? CalendarExportError,
+               calendarError == .calendarUnavailable {
+                CalendarSyncDefaults.forgetSelectedCalendar()
+            }
+        }
+    }
+
+    static func removeMealsAtStartOfNewWeekIfNeeded(in modelContext: ModelContext) throws -> Int {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) else {
+            return 0
+        }
+
+        let weekStartDay = WeekStartDay(
+            rawValue: defaults.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
+        ) ?? .monday
+        let currentWeekStart = weekStartDay.startOfWeek(containing: Date())
+
+        return try removeMealsAddedBefore(currentWeekStart, in: modelContext)
+    }
+
+    static func syncCurrentWeekCalendar(
+        in modelContext: ModelContext,
+        to calendar: CalendarListOption
+    ) async throws -> Int {
+        let plans = (try? modelContext.fetch(FetchDescriptor<WeekPlan>())) ?? []
+        let planWeekStarting = Calendar.current.startOfWeek(containing: Date())
+        let currentPlan = plans.first {
+            Calendar.current.isDate($0.weekStarting, inSameDayAs: planWeekStarting)
+        }
+        let portions = currentPlan.map {
+            currentPlanPortions(for: $0, in: modelContext)
+        } ?? []
+
+        return try await CalendarEventExporter().replaceAutomaticallyAddedEvents(
+            portions,
+            weekStarting: WeekPlanCalendar.mondayStart(containing: Date()),
+            dayCount: WeekPlanCalendar.dayCount,
+            to: calendar
+        )
+    }
+
+    private static func removeMealsAddedBefore(
+        _ cutoff: Date,
+        in modelContext: ModelContext
+    ) throws -> Int {
+        let meals = (try? modelContext.fetch(FetchDescriptor<PlannedMeal>())) ?? []
+        let removedMeals = meals.filter {
+            $0.createdAt < cutoff
+        }
+        guard !removedMeals.isEmpty else { return 0 }
+
+        let removedMealIDs = Set(removedMeals.map(\.id))
+        let portions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
+
+        for portion in portions where portion.plannedMeal.map({ removedMealIDs.contains($0.id) }) == true {
+            modelContext.delete(portion)
+        }
+
+        for meal in removedMeals {
+            modelContext.delete(meal)
+        }
+
+        try modelContext.save()
+        return removedMeals.count
+    }
+
+    private static func currentPlanPortions(
+        for plan: WeekPlan,
+        in modelContext: ModelContext
+    ) -> [PlannedMealPortion] {
+        let sortDescriptors = [
+            SortDescriptor(\PlannedMealPortion.dayOffset),
+            SortDescriptor(\PlannedMealPortion.sortOrder),
+        ]
+        let portions = (
+            try? modelContext.fetch(
+                FetchDescriptor<PlannedMealPortion>(sortBy: sortDescriptors)
+            )
+        ) ?? []
+
+        return portions.filter { portion in
+            portion.weekPlan?.id == plan.id ||
+            portion.plannedMeal?.weekPlan?.id == plan.id
         }
     }
 }

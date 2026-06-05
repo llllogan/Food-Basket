@@ -37,6 +37,7 @@ final class PlannedMeal {
     var id: UUID = UUID()
     var quantityMultiplier: Double = 1
     var sortOrder: Int = 0
+    var createdAt: Date = Date()
     var weekPlan: WeekPlan?
     var recipe: Recipe?
 
@@ -47,6 +48,7 @@ final class PlannedMeal {
         id: UUID = UUID(),
         quantityMultiplier: Double = 1,
         sortOrder: Int = 0,
+        createdAt: Date = Date(),
         weekPlan: WeekPlan? = nil,
         recipe: Recipe? = nil,
         portions: [PlannedMealPortion]? = []
@@ -54,6 +56,7 @@ final class PlannedMeal {
         self.id = id
         self.quantityMultiplier = quantityMultiplier
         self.sortOrder = sortOrder
+        self.createdAt = createdAt
         self.weekPlan = weekPlan
         self.recipe = recipe
         self.portions = portions

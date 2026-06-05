@@ -63,6 +63,32 @@ final class CalendarEventExporter {
             throw CalendarExportError.calendarUnavailable
         }
 
+        return try clearAutomaticallyAddedEvents(from: calendar)
+    }
+
+    func replaceAutomaticallyAddedEvents(
+        _ portions: [PlannedMealPortion],
+        weekStarting: Date,
+        dayCount: Int,
+        to calendarOption: CalendarListOption
+    ) async throws -> Int {
+        try await requestAccessIfNeeded()
+
+        guard let calendar = eventStore.calendar(withIdentifier: calendarOption.id),
+              calendar.allowsContentModifications else {
+            throw CalendarExportError.calendarUnavailable
+        }
+
+        _ = try clearAutomaticallyAddedEvents(from: calendar)
+        return try export(
+            portions,
+            weekStarting: weekStarting,
+            dayCount: dayCount,
+            to: calendar
+        )
+    }
+
+    private func clearAutomaticallyAddedEvents(from calendar: EKCalendar) throws -> Int {
         let currentIdentifier = Self.currentSyncIdentifier()
         var removedCount = 0
 

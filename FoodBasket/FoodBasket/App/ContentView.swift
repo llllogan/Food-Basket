@@ -37,6 +37,7 @@ struct ContentView: View {
         .onOpenURL(perform: openDeepLink)
         .task {
             SeedData.ensureDefaults(in: modelContext)
+            await WeekPlanAutomation.runLaunchMaintenance(in: modelContext)
         }
     }
 

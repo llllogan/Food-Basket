@@ -32,6 +32,32 @@ enum CalendarListDefaults {
     }
 }
 
+enum CalendarSyncDefaults {
+    static let isEnabledKey = "syncToICal"
+    static let calendarIDKey = "syncCalendarID"
+    static let calendarNameKey = "syncCalendarName"
+
+    static var selectedCalendar: CalendarListOption? {
+        let defaults = UserDefaults.standard
+        let id = defaults.string(forKey: calendarIDKey) ?? ""
+        let name = defaults.string(forKey: calendarNameKey) ?? ""
+
+        guard !id.isEmpty, !name.isEmpty else { return nil }
+
+        return CalendarListOption(
+            id: id,
+            title: name,
+            sourceTitle: ""
+        )
+    }
+
+    static func forgetSelectedCalendar() {
+        let defaults = UserDefaults.standard
+        defaults.set("", forKey: calendarIDKey)
+        defaults.set("", forKey: calendarNameKey)
+    }
+}
+
 enum CalendarExportError: LocalizedError, Equatable {
     case accessDenied
     case calendarUnavailable
