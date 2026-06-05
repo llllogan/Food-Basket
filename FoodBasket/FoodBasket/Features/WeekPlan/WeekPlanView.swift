@@ -89,11 +89,16 @@ struct WeekPlanView: View {
     var body: some View {
         NavigationStack {
             List {
-                pickerRow
                 selectedRows
             }
             .listStyle(.plain)
             .navigationTitle("This Week")
+            .safeAreaInset(edge: .top) {
+                modePicker
+                    .padding(.horizontal)
+                    .padding(.top, 6)
+                    .padding(.bottom, 10)
+            }
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -260,12 +265,8 @@ struct WeekPlanView: View {
             }
         }
         .pickerStyle(.segmented)
-    }
-
-    private var pickerRow: some View {
-        modePicker
-            .padding(.vertical, 8)
-            .listRowSeparator(.hidden)
+        .controlSize(.large)
+        .glassEffect(.regular, in: .capsule)
     }
 
     private func plannedMealRow(for plannedMeal: PlannedMeal) -> some View {
@@ -410,15 +411,20 @@ struct WeekPlanView: View {
     private func syncCalendarPortions(for plan: WeekPlan) {
         let meals = (plan.plannedMeals ?? [])
         let mealIDs = Set(meals.map(\.id))
+        let allPortions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? mealPortions
+        let planPortions = allPortions.filter { portion in
+            portion.weekPlan?.id == plan.id ||
+            portion.plannedMeal?.weekPlan?.id == plan.id
+        }
         var nextMondaySortOrder = (
-            currentPlanPortions
+            planPortions
                 .filter { $0.dayOffset == 0 }
                 .map(\.sortOrder)
                 .max() ?? -1
         ) + 1
         var didChange = false
 
-        for portion in mealPortions where portion.weekPlan?.id == plan.id {
+        for portion in planPortions {
             if portion.dayOffset < 0 || portion.dayOffset >= WeekPlanCalendar.dayCount {
                 portion.dayOffset = 0
                 didChange = true
@@ -430,11 +436,16 @@ struct WeekPlanView: View {
                 didChange = true
                 continue
             }
+
+            if portion.weekPlan?.id != plan.id {
+                portion.weekPlan = plan
+                didChange = true
+            }
         }
 
         for meal in meals {
             let expectedCount = PlannedMealPortion.portionCount(for: meal)
-            let existingPortions = mealPortions
+            let existingPortions = planPortions
                 .filter { $0.plannedMeal?.id == meal.id }
                 .sorted { lhs, rhs in
                     if lhs.dayOffset != rhs.dayOffset {
@@ -485,7 +496,7 @@ private enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
         case .calendar:
             "Calendar"
         case .list:
-            "List"
+            "Meals"
         case .groceryList:
             "Grocery List"
         }

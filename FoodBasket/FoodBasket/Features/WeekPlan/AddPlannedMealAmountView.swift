@@ -11,8 +11,6 @@ import SwiftUI
 struct AddPlannedMealAmountView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
-    @Query(sort: \PlannedMealPortion.sortOrder) private var mealPortions: [PlannedMealPortion]
-
     let weekStarting: Date
     let recipe: Recipe
     let onAdd: () -> Void
@@ -68,11 +66,13 @@ struct AddPlannedMealAmountView: View {
             )
         }
 
+        try? modelContext.save()
         onAdd()
     }
 
     private func nextMondayPortionSortOrder(for plan: WeekPlan) -> Int {
-        let maxSortOrder = mealPortions
+        let portions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
+        let maxSortOrder = portions
             .filter { $0.weekPlan?.id == plan.id && $0.dayOffset == 0 }
             .map(\.sortOrder)
             .max()
