@@ -1,6 +1,6 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.93459,0.96783,0.95971,1.00000"
+    "solid" : "display-p3:0.93459,0.96783,0.95971,1.00000"
   },
   "groups" : [
     {
@@ -9,7 +9,7 @@
           "image-name" : "Image.png",
           "name" : "Image",
           "position" : {
-            "scale" : 1.2,
+            "scale" : 1.1,
             "translation-in-points" : [
               1.2000000000000455,
               19.199999999999932
