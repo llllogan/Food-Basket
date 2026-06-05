@@ -81,6 +81,33 @@ struct WeekPlanView: View {
         }
     }
 
+    private var mealDaySections: [WeekPlanMealDaySection] {
+        let validPortions = currentPlanPortions.filter {
+            (0..<WeekPlanCalendar.dayCount).contains($0.dayOffset) &&
+            $0.plannedMeal != nil
+        }
+        let portionsByDay = Dictionary(grouping: validPortions, by: \.dayOffset)
+
+        return (0..<WeekPlanCalendar.dayCount).compactMap { dayOffset in
+            guard let dayPortions = portionsByDay[dayOffset] else { return nil }
+
+            let rows = mealDayRows(from: dayPortions, dayOffset: dayOffset)
+            guard !rows.isEmpty else { return nil }
+
+            let date = Calendar.current.date(
+                byAdding: .day,
+                value: dayOffset,
+                to: calendarWeekStarting
+            ) ?? calendarWeekStarting
+
+            return WeekPlanMealDaySection(
+                dayOffset: dayOffset,
+                date: date,
+                rows: rows
+            )
+        }
+    }
+
     private var shoppingListCategories: [String] {
         Set(shoppingListLines.map(\.categoryName)).sorted {
             $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
@@ -295,27 +322,107 @@ struct WeekPlanView: View {
 
     @ViewBuilder
     private var mealRows: some View {
-        Section {
-            if plannedMeals.isEmpty {
-                Text("Add recipes you want to cook this week.")
+        if plannedMeals.isEmpty {
+            Text("Add recipes you want to cook this week.")
+                .foregroundStyle(.secondary)
+        } else if mealDaySections.isEmpty {
+            Text("Assign meal portions to days to build this list.")
+                .foregroundStyle(.secondary)
+        }
+
+        ForEach(mealDaySections) { section in
+            Section(section.title) {
+                ForEach(section.rows) { row in
+                    if let recipe = row.recipe {
+                        NavigationLink {
+                            RecipeDetailView(recipe: recipe)
+                        } label: {
+                            plannedMealRow(for: row)
+                        }
+                    } else {
+                        plannedMealRow(for: row)
+                    }
+                }
+                .onDelete { offsets in
+                    deleteMealRows(section.rows, at: offsets)
+                }
+            }
+        }
+    }
+
+    private func mealDayRows(
+        from portions: [PlannedMealPortion],
+        dayOffset: Int
+    ) -> [WeekPlanMealDayRow] {
+        let sortedPortions = portions.sorted { lhs, rhs in
+            if lhs.sortOrder != rhs.sortOrder {
+                return lhs.sortOrder < rhs.sortOrder
+            }
+
+            return (lhs.plannedMeal?.sortOrder ?? 0) < (rhs.plannedMeal?.sortOrder ?? 0)
+        }
+        var rows: [WeekPlanMealDayRow] = []
+
+        for (index, portion) in sortedPortions.enumerated() {
+            guard let plannedMeal = portion.plannedMeal else { continue }
+
+            let recipe = plannedMeal.recipe
+            let rowKey = recipe
+                .map { "recipe:\($0.id.uuidString)" } ??
+                "meal:\(plannedMeal.id.uuidString)"
+
+            if let existingIndex = rows.firstIndex(where: { $0.groupKey == rowKey }) {
+                rows[existingIndex].portionCount += 1
+                rows[existingIndex].plannedMealIDs.insert(plannedMeal.id)
+            } else {
+                rows.append(
+                    WeekPlanMealDayRow(
+                        id: "\(dayOffset)-\(rowKey)",
+                        groupKey: rowKey,
+                        recipe: recipe,
+                        title: recipe?.name ?? "Deleted recipe",
+                        portionCount: 1,
+                        plannedMealIDs: [plannedMeal.id],
+                        firstSortIndex: index
+                    )
+                )
+            }
+        }
+
+        return rows.sorted {
+            $0.firstSortIndex < $1.firstSortIndex
+        }
+    }
+
+    private func plannedMealRow(for row: WeekPlanMealDayRow) -> some View {
+        HStack(spacing: 12) {
+            RecipeThumbnailView(photoData: row.recipe?.photoData)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(row.title)
+                Text(row.portionCountText)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            ForEach(plannedMeals) { plannedMeal in
-                if let recipe = plannedMeal.recipe {
-                    NavigationLink {
-                        RecipeDetailView(recipe: recipe)
-                    } label: {
-                        plannedMealRow(for: plannedMeal)
-                    }
-                } else {
-                    plannedMealRow(for: plannedMeal)
-                }
-            }
-            .onDelete(perform: deleteMeals)
-        } header: {
-            Text("Week of \(calendarWeekStarting.formatted(date: .abbreviated, time: .omitted))")
+            Spacer()
         }
+    }
+
+    private func deleteMealRows(_ rows: [WeekPlanMealDayRow], at offsets: IndexSet) {
+        let mealIDs = Set(offsets.flatMap { rows[$0].plannedMealIDs })
+        deleteMeals(withIDs: mealIDs)
+    }
+
+    private func deleteMeals(withIDs mealIDs: Set<UUID>) {
+        for meal in plannedMeals where mealIDs.contains(meal.id) {
+            for portion in currentPlanPortions where portion.plannedMeal?.id == meal.id {
+                modelContext.delete(portion)
+            }
+            modelContext.delete(meal)
+        }
+
+        try? modelContext.save()
     }
 
     @ViewBuilder
@@ -353,17 +460,6 @@ struct WeekPlanView: View {
         .background {
             Capsule()
                 .fill(.ultraThinMaterial.opacity(0.9))
-        }
-    }
-
-    private func plannedMealRow(for plannedMeal: PlannedMeal) -> some View {
-        HStack(spacing: 12) {
-            RecipeThumbnailView(photoData: plannedMeal.recipe?.photoData)
-
-            Text(plannedMeal.recipe?.name ?? "Deleted recipe")
-            Spacer()
-            Text(plannedMeal.formattedMultiplier)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -560,17 +656,6 @@ struct WeekPlanView: View {
         )
     }
 
-    private func deleteMeals(at offsets: IndexSet) {
-        let deletedMeals = offsets.map { plannedMeals[$0] }
-
-        for meal in deletedMeals {
-            for portion in currentPlanPortions where portion.plannedMeal?.id == meal.id {
-                modelContext.delete(portion)
-            }
-            modelContext.delete(meal)
-        }
-    }
-
     private func movePortions(withIDs idStrings: [String], to dayOffset: Int) {
         let ids = Set(idStrings.compactMap(UUID.init(uuidString:)))
         let portions = currentPlanPortions.filter { ids.contains($0.id) }
@@ -694,6 +779,32 @@ private enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
     }
 }
 
+private struct WeekPlanMealDaySection: Identifiable {
+    let dayOffset: Int
+    let date: Date
+    let rows: [WeekPlanMealDayRow]
+
+    var id: Int { dayOffset }
+
+    var title: String {
+        date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    }
+}
+
+private struct WeekPlanMealDayRow: Identifiable {
+    let id: String
+    let groupKey: String
+    let recipe: Recipe?
+    let title: String
+    var portionCount: Int
+    var plannedMealIDs: Set<UUID>
+    let firstSortIndex: Int
+
+    var portionCountText: String {
+        "\(portionCount) \(portionCount == 1 ? "portion" : "portions")"
+    }
+}
+
 private enum WeekPlanCalendar {
     static let dayCount = 8
     static let coordinateSpaceName = "WeekPlanCalendarCoordinateSpace"
@@ -767,7 +878,7 @@ private struct WeekPlanCalendarView: View {
         }
         .padding(.vertical, 4)
         
-        Text("Hold and drag meals to assign them to a day. To remove a meal, swipe to delete it from the List tab.")
+        Text("Hold and drag meals to assign them to a day. To remove a meal, swipe to delete it from the Meals tab.")
             .font(.subheadline)
             .foregroundStyle(.secondary)
     }
@@ -962,13 +1073,6 @@ private extension Recipe {
 
         let initials = String(words).uppercased()
         return initials.isEmpty ? "?" : initials
-    }
-}
-
-private extension PlannedMeal {
-    var formattedMultiplier: String {
-        let quantity = quantityMultiplier.formatted(.number.precision(.fractionLength(0...2)))
-        return "\(quantity)x"
     }
 }
 
