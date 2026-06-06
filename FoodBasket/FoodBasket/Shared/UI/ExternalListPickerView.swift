@@ -29,6 +29,7 @@ struct ExternalListPickerView<Option: ExternalListOption>: View {
                     Image(systemName: isCalendar ? "calendar" : "list.bullet.rectangle.portrait")
                         .font(.headline)
                         .foregroundStyle(.secondary)
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text(option.title)
                             .foregroundStyle(.primary)
@@ -41,6 +42,8 @@ struct ExternalListPickerView<Option: ExternalListOption>: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }

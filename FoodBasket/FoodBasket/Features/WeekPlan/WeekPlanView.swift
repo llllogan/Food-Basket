@@ -7,7 +7,6 @@
 
 import SwiftData
 import SwiftUI
-import TipKit
 import UIKit
 
 struct WeekPlanView: View {
@@ -34,8 +33,10 @@ struct WeekPlanView: View {
     @State private var reminderLists: [ReminderListOption] = []
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
-    @State private var isAddGroceriesTipPresented = false
+    @State private var isShowingReminderExportTipRow = false
+    @State private var reminderExportTipVisibleSince: Date?
     @State private var exportAlert: ReminderExportAlert?
+    private let forceReminderExportTipRow: Bool
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
     @AppStorage(CalendarSyncDefaults.isEnabledKey) private var syncToICal = false
@@ -47,18 +48,21 @@ struct WeekPlanView: View {
     @AppStorage(WeekPlanCalendarFilterDefaults.excludeMealsWithoutMealTypeKey) private var excludeCalendarMealsWithoutMealType = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
+    @AppStorage(WeekPlanGroceryListTipDefaults.isReminderExportTipCompleteKey) private var isReminderExportTipComplete = false
+    @AppStorage(WeekPlanGroceryListTipDefaults.reminderExportTipVisibleSecondsKey) private var reminderExportTipVisibleSeconds = 0.0
 
-    private let addGroceriesTip = AddGroceriesToRemindersTip()
     private let planWeekStarting = Calendar.current.startOfWeek(containing: Date())
     private let calendarWeekStarting = WeekPlanCalendar.mondayStart(containing: Date())
 
     init(
         selectedMode: Binding<WeekPlanDisplayMode>? = nil,
         highlightedPortionIDs: Binding<Set<UUID>> = .constant([]),
-        showingIngredients: Bool = false
+        showingIngredients: Bool = false,
+        forceReminderExportTipRow: Bool = false
     ) {
         _highlightedPortionIDs = highlightedPortionIDs
         self.externalSelectedMode = selectedMode
+        self.forceReminderExportTipRow = forceReminderExportTipRow
         _localSelectedMode = State(
             initialValue: selectedMode?.wrappedValue ?? (showingIngredients ? .groceryList : .list)
         )
@@ -101,6 +105,12 @@ struct WeekPlanView: View {
 
     private var shoppingListLines: [ShoppingListLine] {
         ShoppingListLine.makeLines(for: currentPlan)
+    }
+
+    private var shouldShowReminderExportTipRow: Bool {
+        (forceReminderExportTipRow || isShowingReminderExportTipRow) &&
+        selectedMode == .groceryList &&
+        !shoppingListLines.isEmpty
     }
 
     private var calendarMealPortions: [PlannedMealPortion] {
@@ -257,49 +267,7 @@ struct WeekPlanView: View {
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            prepareReminderListSelection()
-                        } label: {
-                            Label("Add to Reminders", systemImage: "list.bullet")
-                        }
-                        .disabled(shoppingListLines.isEmpty)
-
-                        if let rememberedReminderList {
-                            Divider()
-
-                            Button {
-                                addReminders(to: rememberedReminderList)
-                            } label: {
-                                Text("Add to \(rememberedReminderList.title)")
-                                Text("recently used list")
-                                Image(systemName: "plus")
-                            }
-                            .disabled(shoppingListLines.isEmpty)
-
-                            Button(role: .destructive) {
-                                clearReminders(from: rememberedReminderList)
-                            } label: {
-                                Text("Clear \(rememberedReminderList.title)")
-                                Text("remove Food Basket items")
-                                Image(systemName: "trash")
-                            }
-                        }
-                    } label: {
-                        if isUpdatingReminders {
-                            ProgressView()
-                        } else {
-                            Label("Update Reminders", systemImage: "square.and.arrow.up")
-                        }
-                    }
-                    .disabled(
-                        isUpdatingReminders
-                    )
-                    .popoverTip(
-                        addGroceriesTip,
-                        isPresented: $isAddGroceriesTipPresented,
-                        arrowEdge: .top
-                    )
+                    remindersToolbarControl
                 }
 
                 
@@ -357,7 +325,16 @@ struct WeekPlanView: View {
                 )
             }
             .onAppear {
-                isAddGroceriesTipPresented = true
+                updateReminderExportTipRowVisibility()
+            }
+            .onDisappear {
+                stopShowingReminderExportTipRow()
+            }
+            .onChange(of: selectedMode) { _, _ in
+                updateReminderExportTipRowVisibility()
+            }
+            .onChange(of: shoppingListLines.count) { _, _ in
+                updateReminderExportTipRowVisibility()
             }
             .task {
                 let plan = SeedData.weekPlan(
@@ -375,6 +352,61 @@ struct WeekPlanView: View {
             .task(id: automaticCalendarSyncKey) {
                 await performCalendarAutomation()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var remindersToolbarControl: some View {
+        if let rememberedReminderList {
+            Menu {
+                Button {
+                    prepareReminderListSelection()
+                } label: {
+                    Label("Choose Reminders List", systemImage: "list.bullet")
+                }
+                .disabled(shoppingListLines.isEmpty)
+
+                Divider()
+
+                Button {
+                    addReminders(to: rememberedReminderList)
+                } label: {
+                    Text("Add to \(rememberedReminderList.title)")
+                    Text("default list")
+                    Image(systemName: "plus")
+                }
+                .disabled(shoppingListLines.isEmpty)
+
+                Button(role: .destructive) {
+                    clearReminders(from: rememberedReminderList)
+                } label: {
+                    Text("Clear \(rememberedReminderList.title)")
+                    Text("remove Food Basket items")
+                    Image(systemName: "trash")
+                }
+            } label: {
+                remindersToolbarLabel
+            } primaryAction: {
+                guard !shoppingListLines.isEmpty else { return }
+                addReminders(to: rememberedReminderList)
+            }
+            .disabled(isUpdatingReminders)
+        } else {
+            Button {
+                prepareReminderListSelection()
+            } label: {
+                remindersToolbarLabel
+            }
+            .disabled(isUpdatingReminders || shoppingListLines.isEmpty)
+        }
+    }
+
+    @ViewBuilder
+    private var remindersToolbarLabel: some View {
+        if isUpdatingReminders {
+            ProgressView()
+        } else {
+            Label("Update Reminders", systemImage: "square.and.arrow.up")
         }
     }
 
@@ -424,6 +456,7 @@ struct WeekPlanView: View {
         iCalSyncSettingsSection
         calendarViewSettingsSection
         weeklyCleanupSettingsSection
+        exportDefaultsSettingsSection
     }
 
     @ViewBuilder
@@ -483,6 +516,50 @@ struct WeekPlanView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var exportDefaultsSettingsSection: some View {
+        Section {
+            Button(role: .destructive) {
+                clearDefaultRemindersList()
+            } label: {
+                defaultExportClearButtonLabel(
+                    title: "Clear Default Reminders List",
+                    currentValue: lastRemindersListName.isEmpty ? "Not set" : lastRemindersListName
+                )
+            }
+            .disabled(lastRemindersListID.isEmpty)
+
+            Button(role: .destructive) {
+                clearDefaultCalendar()
+            } label: {
+                defaultExportClearButtonLabel(
+                    title: "Clear Default Calendar",
+                    currentValue: lastCalendarName.isEmpty ? "Not set" : lastCalendarName
+                )
+            }
+            .disabled(lastCalendarID.isEmpty)
+        } header: {
+            Text("Export Defaults")
+        } footer: {
+            Text("Food Basket uses these defaults for quick grocery and calendar exports.")
+        }
+    }
+
+    private func defaultExportClearButtonLabel(
+        title: String,
+        currentValue: String
+    ) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(currentValue)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
         }
     }
 
@@ -628,6 +705,11 @@ struct WeekPlanView: View {
             .listRowInsets(emptyStateInsets)
         }
 
+        if shouldShowReminderExportTipRow {
+            groceryReminderExportTipRow
+                .listRowSeparator(.hidden)
+        }
+
         ForEach(shoppingListCategories, id: \.self) { category in
             Section(category) {
                 ForEach(shoppingListLines.filter { $0.categoryName == category }) { line in
@@ -643,6 +725,29 @@ struct WeekPlanView: View {
                 }
             }
         }
+    }
+
+    private var groceryReminderExportTipRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "square.and.arrow.up")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.tint)
+                .frame(width: 36, height: 36)
+                .background(Color.accentColor.opacity(0.14), in: Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Export to Reminders")
+                    .font(.headline)
+
+                Text("Tap the share button to export this grocery list to Apple Reminders.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 8)
+        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
     }
 
     private var emptyStateInsets: EdgeInsets {
@@ -811,6 +916,7 @@ struct WeekPlanView: View {
             do {
                 try await remindersExporter.export(shoppingListLines, to: list)
                 remember(list)
+                completeReminderExportTip()
                 exportAlert = ReminderExportAlert(
                     title: "Shopping List Added",
                     message: "\(shoppingListLines.count) items were added to \(list.title)."
@@ -858,10 +964,19 @@ struct WeekPlanView: View {
         lastRemindersListName = list.title
     }
 
-    private func forgetRememberedCalendar(ifMatching calendar: CalendarListOption) {
-        guard calendar.id == lastCalendarID else { return }
+    private func clearDefaultCalendar() {
         lastCalendarID = ""
         lastCalendarName = ""
+    }
+
+    private func clearDefaultRemindersList() {
+        lastRemindersListID = ""
+        lastRemindersListName = ""
+    }
+
+    private func forgetRememberedCalendar(ifMatching calendar: CalendarListOption) {
+        guard calendar.id == lastCalendarID else { return }
+        clearDefaultCalendar()
     }
 
     private func forgetSyncCalendar(ifMatching calendar: CalendarListOption) {
@@ -872,8 +987,7 @@ struct WeekPlanView: View {
 
     private func forgetRememberedList(ifMatching list: ReminderListOption) {
         guard list.id == lastRemindersListID else { return }
-        lastRemindersListID = ""
-        lastRemindersListName = ""
+        clearDefaultRemindersList()
     }
 
     private func showCalendarError(_ error: Error, for calendar: CalendarListOption? = nil) {
@@ -922,6 +1036,54 @@ struct WeekPlanView: View {
             title: "Unable to Update Reminders",
             message: error.localizedDescription
         )
+    }
+
+    private func updateReminderExportTipRowVisibility() {
+        guard selectedMode == .groceryList, !shoppingListLines.isEmpty else {
+            stopShowingReminderExportTipRow()
+            return
+        }
+
+        if forceReminderExportTipRow {
+            showReminderExportTipRow()
+            return
+        }
+
+        guard !isReminderExportTipComplete else {
+            return
+        }
+
+        showReminderExportTipRow()
+    }
+
+    private func showReminderExportTipRow() {
+        guard !isShowingReminderExportTipRow else { return }
+
+        isShowingReminderExportTipRow = true
+        reminderExportTipVisibleSince = Date()
+    }
+
+    private func stopShowingReminderExportTipRow() {
+        accumulateReminderExportTipVisibleTime()
+
+        if reminderExportTipVisibleSeconds >= WeekPlanGroceryListTipDefaults.requiredVisibleSeconds {
+            completeReminderExportTip()
+        } else {
+            isShowingReminderExportTipRow = false
+        }
+    }
+
+    private func accumulateReminderExportTipVisibleTime() {
+        guard let reminderExportTipVisibleSince else { return }
+
+        reminderExportTipVisibleSeconds += Date().timeIntervalSince(reminderExportTipVisibleSince)
+        self.reminderExportTipVisibleSince = nil
+    }
+
+    private func completeReminderExportTip() {
+        accumulateReminderExportTipVisibleTime()
+        isReminderExportTipComplete = true
+        isShowingReminderExportTipRow = false
     }
 
     private func isIncludedInCalendarView(_ portion: PlannedMealPortion) -> Bool {
@@ -1104,6 +1266,12 @@ enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
 private enum WeekPlanCalendarFilterDefaults {
     static let excludedMealTypeIDsKey = "calendarViewExcludedMealTypeIDs"
     static let excludeMealsWithoutMealTypeKey = "calendarViewExcludeMealsWithoutMealType"
+}
+
+private enum WeekPlanGroceryListTipDefaults {
+    static let requiredVisibleSeconds = 10.0
+    static let isReminderExportTipCompleteKey = "isGroceryListReminderExportTipComplete"
+    static let reminderExportTipVisibleSecondsKey = "groceryListReminderExportTipVisibleSeconds"
 }
 
 enum WeekPlanAutomationDefaults {
@@ -1646,6 +1814,16 @@ private extension Recipe {
 
     WeekPlanView(showingIngredients: true)
         .modelContainer(previewData.container)
+}
+
+#Preview("This Week Grocery Export Tip") {
+    let previewData = PreviewData()
+
+    WeekPlanView(
+        selectedMode: .constant(.groceryList),
+        forceReminderExportTipRow: true
+    )
+    .modelContainer(previewData.container)
 }
 
 #Preview("This Week Empty List") {

@@ -99,13 +99,12 @@ struct IngredientFormView: View {
                         isGenerating: isGeneratingImage
                     )
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         if supportsImagePlayground {
                             IngredientPhotoActionButton(
                                 title: "Regenerate",
                                 systemImage: "wand.and.sparkles",
-                                isDisabled: !canGenerateIngredientImage,
-                                isAi: true
+                                isDisabled: !canGenerateIngredientImage
                             ) {
                                 regenerateDraftImage()
                             }
@@ -114,8 +113,7 @@ struct IngredientFormView: View {
                         IngredientPhotoActionButton(
                             title: "Take Photo",
                             systemImage: "camera",
-                            isDisabled: false,
-                            isAi: false
+                            isDisabled: false
                         ) {
                             takePhoto()
                         }
@@ -569,20 +567,22 @@ private struct IngredientPhotoActionButton: View {
     let title: String
     let systemImage: String
     let isDisabled: Bool
-    let isAi: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Image(systemName: systemImage)
                     .font(.subheadline)
                 Text(title)
             }
-            .foregroundStyle(isAi ? .purple : .primary)
+            .padding(.vertical, 4)
             .frame(maxWidth: .infinity)
+            .fontWeight(.medium)
+            .foregroundColor(Color(uiColor: .label))
         }
         .buttonStyle(.bordered)
+        .frame(maxWidth: .infinity)
         .disabled(isDisabled)
     }
 }
