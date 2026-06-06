@@ -16,13 +16,12 @@ struct RecipeDetailView: View {
     @State private var showingAddIngredient = false
     @State private var showingEditRecipe = false
     @State private var showingCamera = false
-    @State private var showingCameraUnavailable = false
     @State private var substitutedIngredientLine: RecipeIngredient?
     @State private var remindersExporter = RemindersExporter()
     @State private var reminderLists: [ReminderListOption] = []
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
-    @State private var exportAlert: ReminderExportAlert?
+    @State private var activeAlert: RecipeDetailAlert?
     @State private var isScrubbingRating = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
@@ -55,68 +54,67 @@ struct RecipeDetailView: View {
         Calendar.current.startOfWeek(containing: Date())
     }
 
+    private var currentWeekPlan: WeekPlan? {
+        plans.first {
+            Calendar.current.isDate($0.weekStarting, inSameDayAs: planWeekStarting)
+        }
+    }
+
     private var clampedRecipeRating: Int {
         min(max(recipe.rating, 0), 5)
     }
 
     var body: some View {
-        List {
-            RecipeHeroImageView(photoData: recipe.photoData, takePhoto: takePhoto)
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text(recipe.name)
-                    .font(.largeTitle.bold())
-                
-                HStack(spacing: 8) {
-                    Image(systemName: "clock")
-                    Text("\(recipe.cookingTimeMinutes) min")
-                    Image(systemName: "person.2")
-                    Text("\(recipe.serves)")
+        recipeContent
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                recipeToolbar
+            }
+            .sheet(isPresented: $showingEditRecipe) {
+                NavigationStack {
+                    RecipeFormView(recipe: recipe)
                 }
-                .foregroundStyle(.secondary)
             }
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            
-            HStack {
-                groceryListButton
-                ratingPicker
+            .sheet(isPresented: $showingAddIngredient) {
+                NavigationStack {
+                    AddIngredientToRecipeView(recipe: recipe)
+                }
             }
-            .listRowSeparator(.hidden)
-            .padding(.bottom, -15)
-
-            Section("Ingredients") {
-                if ingredientLines.isEmpty {
-                    Text("No ingredients yet.")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(ingredientLines) { line in
-                        ingredientLineRow(for: line)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                deleteIngredientLine(line)
-                            } label: {
-                                Label("Remove", systemImage: "xmark")
-                            }
-
-                            Button {
-                                substitutedIngredientLine = line
-                            } label: {
-                                Label("Substitute", systemImage: "arrow.triangle.2.circlepath")
-                            }
-                            .tint(.purple)
-                        }
+            .sheet(isPresented: $showingReminderListPicker) {
+                NavigationStack {
+                    ExternalListPickerView(
+                        isCalendar: false,
+                        options: reminderLists
+                    ) { list in
+                        addReminders(to: list)
                     }
                 }
             }
-
-            Section("Method") {
-                Text(recipe.method.isEmpty ? "No method added." : recipe.method)
-                    .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
+            .sheet(item: $substitutedIngredientLine) { line in
+                NavigationStack {
+                    SubstituteRecipeIngredientView(line: line)
+                }
             }
+            .fullScreenCover(isPresented: $showingCamera) {
+                CameraPicker { image in
+                    recipe.photoData = image.recipePhotoData
+                    try? modelContext.save()
+                }
+                .ignoresSafeArea()
+            }
+            .alert(item: $activeAlert) { alert in
+                recipeAlert(for: alert)
+            }
+    }
+
+    private var recipeContent: some View {
+        List {
+            heroImageRow
+            recipeSummaryRow
+            recipeActionRow
+            ingredientsSection
+            methodSection
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -125,78 +123,107 @@ struct RecipeDetailView: View {
                 .ignoresSafeArea()
         }
         .ignoresSafeArea(edges: .top)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingEditRecipe = true
-                } label: {
-                    Text("Edit")
+    }
+
+    private var heroImageRow: some View {
+        RecipeHeroImageView(photoData: recipe.photoData, takePhoto: takePhoto)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    private var recipeSummaryRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(recipe.name)
+                .font(.largeTitle.bold())
+
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                Text("\(recipe.cookingTimeMinutes) min")
+                Image(systemName: "person.2")
+                Text("\(recipe.serves)")
+            }
+            .foregroundStyle(.secondary)
+        }
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+
+    private var recipeActionRow: some View {
+        HStack {
+            groceryListButton
+            ratingPicker
+        }
+        .listRowSeparator(.hidden)
+        .padding(.bottom, -15)
+    }
+
+    @ViewBuilder
+    private var ingredientsSection: some View {
+        Section("Ingredients") {
+            if ingredientLines.isEmpty {
+                Text("No ingredients yet.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(ingredientLines) { line in
+                    ingredientLineRow(for: line)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            ingredientSwipeActions(for: line)
+                        }
                 }
             }
-            
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    takePhoto()
-                } label: {
-                    Label("Take Meal Photo", systemImage: "camera")
-                }
-            }
-            
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingAddIngredient = true
-                } label: {
-                    Label("Add Ingredient", systemImage: "plus")
-                }
-            }
         }
-        .sheet(isPresented: $showingEditRecipe) {
-            NavigationStack {
-                RecipeFormView(recipe: recipe)
-            }
+    }
+
+    private var methodSection: some View {
+        Section("Method") {
+            Text(recipe.method.isEmpty ? "No method added." : recipe.method)
+                .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
         }
-        .sheet(isPresented: $showingAddIngredient) {
-            NavigationStack {
-                AddIngredientToRecipeView(recipe: recipe)
-            }
+    }
+
+    @ViewBuilder
+    private func ingredientSwipeActions(for line: RecipeIngredient) -> some View {
+        Button(role: .destructive) {
+            deleteIngredientLine(line)
+        } label: {
+            Label("Remove", systemImage: "xmark")
         }
-        .sheet(isPresented: $showingReminderListPicker) {
-            NavigationStack {
-                ExternalListPickerView(
-                    isCalendar: false,
-                    options: reminderLists
-                ) { list in
-                    addReminders(to: list)
-                }
+
+        Button {
+            substitutedIngredientLine = line
+        } label: {
+            Label("Substitute", systemImage: "arrow.triangle.2.circlepath")
+        }
+        .tint(.purple)
+    }
+
+    @ToolbarContentBuilder
+    private var recipeToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showingEditRecipe = true
+            } label: {
+                Text("Edit")
             }
         }
-        .sheet(item: $substitutedIngredientLine) { line in
-            NavigationStack {
-                SubstituteRecipeIngredientView(line: line)
+
+        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                takePhoto()
+            } label: {
+                Label("Take Meal Photo", systemImage: "camera")
             }
         }
-        .fullScreenCover(isPresented: $showingCamera) {
-            CameraPicker { image in
-                recipe.photoData = image.recipePhotoData
-                try? modelContext.save()
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showingAddIngredient = true
+            } label: {
+                Label("Add Ingredient", systemImage: "plus")
             }
-            .ignoresSafeArea()
-        }
-        .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("A camera is not available on this device.")
-        }
-        .alert(item: $exportAlert) { alert in
-            Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
-            )
         }
     }
 
@@ -267,6 +294,15 @@ struct RecipeDetailView: View {
     }
 
     private func addToThisWeek() {
+        if let duplicateUpdate = pendingDuplicateThisWeekUpdate() {
+            activeAlert = .duplicateThisWeekUpdate(duplicateUpdate)
+            return
+        }
+
+        createThisWeekMeal()
+    }
+
+    private func createThisWeekMeal() {
         let plan = SeedData.weekPlan(
             starting: planWeekStarting,
             existing: plans,
@@ -295,6 +331,58 @@ struct RecipeDetailView: View {
 
         try? modelContext.save()
         playAddToWeekHaptic()
+    }
+
+    private func pendingDuplicateThisWeekUpdate() -> ThisWeekDuplicateUpdate? {
+        guard let plan = currentWeekPlan else { return nil }
+
+        let matchingMeals = (plan.plannedMeals ?? [])
+            .filter { $0.recipe?.id == recipe.id }
+            .sorted { $0.sortOrder < $1.sortOrder }
+
+        guard let firstMatchingMeal = matchingMeals.first else { return nil }
+
+        let currentIngredientCount = matchingMeals.reduce(0) { total, meal in
+            total + max(meal.quantityMultiplier, 0)
+        }
+
+        return ThisWeekDuplicateUpdate(
+            mealID: firstMatchingMeal.id,
+            updatedIngredientCount: currentIngredientCount + 1
+        )
+    }
+
+    private func updateThisWeekCount(for update: ThisWeekDuplicateUpdate) {
+        guard let plan = currentWeekPlan,
+              let meal = (plan.plannedMeals ?? []).first(where: { $0.id == update.mealID }) else {
+            createThisWeekMeal()
+            return
+        }
+
+        meal.quantityMultiplier += 1
+        addMissingPortions(for: meal, in: plan)
+        try? modelContext.save()
+        playAddToWeekHaptic()
+    }
+
+    private func addMissingPortions(for meal: PlannedMeal, in plan: WeekPlan) {
+        let existingPortions = allPlannedMealPortions()
+            .filter { $0.plannedMeal?.id == meal.id }
+        let missingCount = PlannedMealPortion.portionCount(for: meal) - existingPortions.count
+
+        guard missingCount > 0 else { return }
+
+        let firstSortOrder = nextMondayPortionSortOrder(for: plan)
+        for index in 0..<missingCount {
+            modelContext.insert(
+                PlannedMealPortion(
+                    dayOffset: 0,
+                    sortOrder: firstSortOrder + index,
+                    weekPlan: plan,
+                    plannedMeal: meal
+                )
+            )
+        }
     }
 
     private var ratingPicker: some View {
@@ -392,7 +480,7 @@ struct RecipeDetailView: View {
 
     private func takePhoto() {
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            showingCameraUnavailable = true
+            activeAlert = .cameraUnavailable
             return
         }
 
@@ -443,9 +531,11 @@ struct RecipeDetailView: View {
                     sourceIdentifier: reminderSourceIdentifier
                 )
                 remember(list)
-                exportAlert = ReminderExportAlert(
-                    title: "Grocery List Added",
-                    message: "\(shoppingListLines.count) items from \(recipe.name) were added to \(list.title)."
+                activeAlert = .export(
+                    ReminderExportAlert(
+                        title: "Grocery List Added",
+                        message: "\(shoppingListLines.count) items from \(recipe.name) were added to \(list.title)."
+                    )
                 )
             } catch {
                 showRemindersError(error, for: list)
@@ -466,9 +556,11 @@ struct RecipeDetailView: View {
                     from: list,
                     sourceIdentifier: reminderSourceIdentifier
                 )
-                exportAlert = ReminderExportAlert(
-                    title: "Grocery List Removed",
-                    message: "\(removedCount) items from \(recipe.name) were removed from \(list.title)."
+                activeAlert = .export(
+                    ReminderExportAlert(
+                        title: "Grocery List Removed",
+                        message: "\(removedCount) items from \(recipe.name) were removed from \(list.title)."
+                    )
                 )
             } catch {
                 showRemindersError(error, for: list)
@@ -488,13 +580,16 @@ struct RecipeDetailView: View {
     }
 
     private func nextMondayPortionSortOrder(for plan: WeekPlan) -> Int {
-        let portions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
-        let maxSortOrder = portions
+        let maxSortOrder = allPlannedMealPortions()
             .filter { $0.weekPlan?.id == plan.id && $0.dayOffset == 0 }
             .map(\.sortOrder)
             .max()
 
         return (maxSortOrder ?? -1) + 1
+    }
+
+    private func allPlannedMealPortions() -> [PlannedMealPortion] {
+        (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
     }
 
     private func showRemindersError(_ error: Error, for list: ReminderListOption? = nil) {
@@ -504,9 +599,11 @@ struct RecipeDetailView: View {
             forgetRememberedList(ifMatching: list)
         }
 
-        exportAlert = ReminderExportAlert(
-            title: "Unable to Update Reminders",
-            message: error.localizedDescription
+        activeAlert = .export(
+            ReminderExportAlert(
+                title: "Unable to Update Reminders",
+                message: error.localizedDescription
+            )
         )
     }
 
@@ -550,6 +647,43 @@ struct RecipeDetailView: View {
         }
     }
 
+    private func formattedCount(_ count: Double) -> String {
+        count.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    private func duplicateThisWeekUpdateMessage(for update: ThisWeekDuplicateUpdate) -> String {
+        """
+        This recipe has been added already. Do you want to increase \
+        the recipe ingredients count to \(formattedCount(update.updatedIngredientCount))?
+        """
+    }
+
+    private func recipeAlert(for alert: RecipeDetailAlert) -> Alert {
+        switch alert {
+        case .cameraUnavailable:
+            Alert(
+                title: Text("Camera Unavailable"),
+                message: Text("A camera is not available on this device."),
+                dismissButton: .default(Text("OK"))
+            )
+        case .duplicateThisWeekUpdate(let update):
+            Alert(
+                title: Text("Recipe Already Added"),
+                message: Text(duplicateThisWeekUpdateMessage(for: update)),
+                primaryButton: .cancel(Text("Cancel")),
+                secondaryButton: .default(Text("Update count")) {
+                    updateThisWeekCount(for: update)
+                }
+            )
+        case .export(let exportAlert):
+            Alert(
+                title: Text(exportAlert.title),
+                message: Text(exportAlert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+    }
+
     private func playGroceryMenuHaptic() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
@@ -561,6 +695,29 @@ struct RecipeDetailView: View {
     private func playRatingSelectionHaptic() {
         UISelectionFeedbackGenerator().selectionChanged()
     }
+}
+
+private enum RecipeDetailAlert: Identifiable {
+    case cameraUnavailable
+    case duplicateThisWeekUpdate(ThisWeekDuplicateUpdate)
+    case export(ReminderExportAlert)
+
+    var id: String {
+        switch self {
+        case .cameraUnavailable:
+            "camera-unavailable"
+        case .duplicateThisWeekUpdate(let update):
+            "duplicate-\(update.id.uuidString)"
+        case .export(let alert):
+            "export-\(alert.id.uuidString)"
+        }
+    }
+}
+
+private struct ThisWeekDuplicateUpdate: Identifiable {
+    let id = UUID()
+    let mealID: UUID
+    let updatedIngredientCount: Double
 }
 
 private extension DragGesture.Value {
