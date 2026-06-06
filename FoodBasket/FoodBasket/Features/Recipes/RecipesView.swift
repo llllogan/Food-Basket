@@ -70,15 +70,6 @@ struct RecipesView: View {
         return sortMode.sort(visibleRecipes)
     }
 
-    private var selectedMealTypeFilter: MealType? {
-        guard let selectedMealTypeFilterID else { return nil }
-        return mealTypes.first { $0.id == selectedMealTypeFilterID }
-    }
-
-    private var mealTypeFilterTitle: String {
-        selectedMealTypeFilter?.name ?? "Filter by Meal Type"
-    }
-
     var body: some View {
         NavigationStack(path: $navigationPath) {
             List {
@@ -97,11 +88,12 @@ struct RecipesView: View {
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(recipe.name)
-                                RecipeListRatingStars(rating: recipe.rating)
                                 
                                 Text(recipe.listSubtitle)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                
+                                RecipeListRatingStars(rating: recipe.rating)
                             }
                         }
                     }
@@ -120,48 +112,8 @@ struct RecipesView: View {
                 prompt: "Search name or meal type"
             )
             .toolbar {
-                
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            selectedMealTypeFilterID = nil
-                        } label: {
-                            mealTypeFilterMenuLabel(
-                                "All Meal Types",
-                                isSelected: selectedMealTypeFilterID == nil
-                            )
-                        }
-
-                        if !mealTypes.isEmpty {
-                            Divider()
-
-                            ForEach(mealTypes) { mealType in
-                                Button {
-                                    selectedMealTypeFilterID = mealType.id
-                                } label: {
-                                    mealTypeFilterMenuLabel(
-                                        mealType.name,
-                                        isSelected: selectedMealTypeFilterID == mealType.id
-                                    )
-                                }
-                            }
-                        }
-                    } label: {
-                        Label(
-                            mealTypeFilterTitle,
-                            systemImage: selectedMealTypeFilterID == nil
-                                ? "line.3.horizontal.decrease.circle"
-                                : "line.3.horizontal.decrease.circle.fill"
-                        )
-                    }
-                }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        sortMode.toggle()
-                    } label: {
-                        Label(sortMode.nextSortTitle, systemImage: sortMode.nextSystemImage)
-                    }
+                    filterAndSortMenu
                 }
                 
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
@@ -230,6 +182,70 @@ struct RecipesView: View {
 
     @ViewBuilder
     private func mealTypeFilterMenuLabel(_ title: String, isSelected: Bool) -> some View {
+        if isSelected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
+        }
+    }
+
+    private var filterAndSortMenu: some View {
+        Menu {
+            Section("Filter") {
+                Button {
+                    selectedMealTypeFilterID = nil
+                } label: {
+                    mealTypeFilterMenuLabel(
+                        "All",
+                        isSelected: selectedMealTypeFilterID == nil
+                    )
+                }
+
+                ForEach(mealTypes) { mealType in
+                    Button {
+                        selectedMealTypeFilterID = mealType.id
+                    } label: {
+                        mealTypeFilterMenuLabel(
+                            mealType.name,
+                            isSelected: selectedMealTypeFilterID == mealType.id
+                        )
+                    }
+                }
+
+            }
+            
+            Section("Sort") {
+                Button {
+                    sortMode = .name
+                } label: {
+                    sortMenuLabel(
+                        "Sort by Name",
+                        isSelected: sortMode == .name
+                    )
+                }
+
+                Button {
+                    sortMode = .rating
+                } label: {
+                    sortMenuLabel(
+                        "Sort by Star Rating",
+                        isSelected: sortMode == .rating
+                    )
+                }
+            }
+
+        } label: {
+            Label(
+                "Filter and Sort",
+                systemImage: selectedMealTypeFilterID == nil
+                    ? "line.3.horizontal.decrease.circle"
+                    : "line.3.horizontal.decrease.circle.fill"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func sortMenuLabel(_ title: String, isSelected: Bool) -> some View {
         if isSelected {
             Label(title, systemImage: "checkmark")
         } else {
@@ -325,33 +341,6 @@ struct RecipesView: View {
 private enum RecipeListSortMode {
     case name
     case rating
-
-    var nextSystemImage: String {
-        switch self {
-        case .name:
-            "star.circle.fill"
-        case .rating:
-            "characters.lowercase"
-        }
-    }
-
-    var nextSortTitle: String {
-        switch self {
-        case .name:
-            "Sort by Star Rating"
-        case .rating:
-            "Sort by Name"
-        }
-    }
-
-    mutating func toggle() {
-        switch self {
-        case .name:
-            self = .rating
-        case .rating:
-            self = .name
-        }
-    }
 
     func sort(_ recipes: [Recipe]) -> [Recipe] {
         switch self {
