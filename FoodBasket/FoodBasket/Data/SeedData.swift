@@ -12,6 +12,7 @@ enum SeedData {
     static func ensureDefaults(in modelContext: ModelContext) {
         let units = (try? modelContext.fetch(FetchDescriptor<MeasurementUnit>())) ?? []
         let categories = (try? modelContext.fetch(FetchDescriptor<IngredientCategory>())) ?? []
+        let mealTypes = (try? modelContext.fetch(FetchDescriptor<MealType>())) ?? []
 
         let defaultUnits = [
             ("Each", "each"),
@@ -48,6 +49,12 @@ enum SeedData {
         for name in defaultCategories
         where !categories.contains(where: { $0.normalizedName == name.normalizedLookupValue }) {
             modelContext.insert(IngredientCategory(name: name))
+        }
+
+        let defaultMealTypes = ["Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]
+        for name in defaultMealTypes
+        where !mealTypes.contains(where: { $0.normalizedName == name.normalizedLookupValue }) {
+            modelContext.insert(MealType(name: name))
         }
 
         try? modelContext.save()
@@ -94,6 +101,25 @@ enum SeedData {
         )
         modelContext.insert(unit)
         return unit
+    }
+
+    static func mealType(
+        named name: String,
+        existing mealTypes: [MealType],
+        in modelContext: ModelContext
+    ) -> MealType? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return nil }
+
+        if let mealType = mealTypes.first(where: {
+            $0.normalizedName == trimmedName.normalizedLookupValue
+        }) {
+            return mealType
+        }
+
+        let mealType = MealType(name: trimmedName)
+        modelContext.insert(mealType)
+        return mealType
     }
 
     static func weekPlan(

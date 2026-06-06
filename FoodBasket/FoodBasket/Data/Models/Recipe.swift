@@ -17,6 +17,7 @@ final class Recipe {
     var serves: Int = 0
     var rating: Int = 0
     @Attribute(.externalStorage) var photoData: Data?
+    var mealType: MealType?
 
     @Relationship(deleteRule: .cascade, inverse: \RecipeIngredient.recipe)
     var ingredientLines: [RecipeIngredient]? = []
@@ -32,6 +33,7 @@ final class Recipe {
         serves: Int = 0,
         rating: Int = 0,
         photoData: Data? = nil,
+        mealType: MealType? = nil,
         ingredientLines: [RecipeIngredient]? = [],
         plannedMeals: [PlannedMeal]? = []
     ) {
@@ -42,8 +44,30 @@ final class Recipe {
         self.serves = serves
         self.rating = rating
         self.photoData = photoData
+        self.mealType = mealType
         self.ingredientLines = ingredientLines
         self.plannedMeals = plannedMeals
+    }
+}
+
+@Model
+final class MealType {
+    var id: UUID = UUID()
+    var name: String = ""
+    var normalizedName: String = ""
+
+    @Relationship(deleteRule: .nullify, inverse: \Recipe.mealType)
+    var recipes: [Recipe]? = []
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        recipes: [Recipe]? = []
+    ) {
+        self.id = id
+        self.name = name
+        self.normalizedName = name.normalizedLookupValue
+        self.recipes = recipes
     }
 }
 

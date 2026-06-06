@@ -30,6 +30,8 @@ struct PreviewData {
         let pantry = IngredientCategory(name: "Pantry")
         let each = MeasurementUnit(name: "Each", symbol: "each")
         let gram = MeasurementUnit(name: "Gram", symbol: "g")
+        let lunch = MealType(name: "Lunch")
+        let dinner = MealType(name: "Dinner")
 
         let chicken = Ingredient(
             name: "Chicken thigh",
@@ -60,7 +62,8 @@ struct PreviewData {
             name: "Lemon Chicken with Rice",
             method: "Roast the chicken with lemon, steam the broccoli, and serve with rice.",
             cookingTimeMinutes: 45,
-            serves: 4
+            serves: 4,
+            mealType: dinner
         )
         Self.add(chicken, quantity: 500, to: lemonChicken, in: modelContext)
         Self.add(lemon, quantity: 1, to: lemonChicken, in: modelContext)
@@ -71,7 +74,8 @@ struct PreviewData {
             name: "Broccoli Rice Bowl",
             method: "Steam the broccoli and serve over rice with your preferred dressing.",
             cookingTimeMinutes: 25,
-            serves: 2
+            serves: 2,
+            mealType: lunch
         )
         Self.add(broccoli, quantity: 2, to: broccoliRice, in: modelContext)
         Self.add(rice, quantity: 250, to: broccoliRice, in: modelContext)
@@ -87,6 +91,8 @@ struct PreviewData {
             pantry,
             each,
             gram,
+            lunch,
+            dinner,
             chicken,
             broccoli,
             lemon,

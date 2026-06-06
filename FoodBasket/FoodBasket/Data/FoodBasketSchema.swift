@@ -11,6 +11,7 @@ enum FoodBasketDataSchema {
     static var current: Schema {
         Schema([
             Recipe.self,
+            MealType.self,
             RecipeIngredient.self,
             Ingredient.self,
             IngredientCategory.self,

@@ -12,6 +12,7 @@ import UIKit
 struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
+    @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Binding private var selectedRecipeID: UUID?
     @State private var navigationPath = NavigationPath()
     @State private var showingAddRecipe = false
@@ -23,6 +24,7 @@ struct RecipesView: View {
     @State private var runningImportTask: Task<Void, Never>?
     @State private var searchText = ""
     @State private var sortMode = RecipeListSortMode.name
+    @State private var selectedMealTypeFilterID: UUID?
 
     init(selectedRecipeID: Binding<UUID?> = .constant(nil)) {
         _selectedRecipeID = selectedRecipeID
@@ -45,17 +47,36 @@ struct RecipesView: View {
 
     private var filteredRecipes: [Recipe] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let visibleRecipes: [Recipe]
+        let searchMatchedRecipes: [Recipe]
 
         if trimmedSearchText.isEmpty {
-            visibleRecipes = recipes
+            searchMatchedRecipes = recipes
         } else {
-            visibleRecipes = recipes.filter {
-                $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+            searchMatchedRecipes = recipes.filter { recipe in
+                recipe.name.localizedCaseInsensitiveContains(trimmedSearchText) ||
+                (recipe.mealType?.name.localizedCaseInsensitiveContains(trimmedSearchText) ?? false)
             }
         }
 
+        let visibleRecipes: [Recipe]
+        if let selectedMealTypeFilterID {
+            visibleRecipes = searchMatchedRecipes.filter {
+                $0.mealType?.id == selectedMealTypeFilterID
+            }
+        } else {
+            visibleRecipes = searchMatchedRecipes
+        }
+
         return sortMode.sort(visibleRecipes)
+    }
+
+    private var selectedMealTypeFilter: MealType? {
+        guard let selectedMealTypeFilterID else { return nil }
+        return mealTypes.first { $0.id == selectedMealTypeFilterID }
+    }
+
+    private var mealTypeFilterTitle: String {
+        selectedMealTypeFilter?.name ?? "Filter by Meal Type"
     }
 
     var body: some View {
@@ -78,7 +99,7 @@ struct RecipesView: View {
                                 Text(recipe.name)
                                 RecipeListRatingStars(rating: recipe.rating)
                                 
-                                Text("\(recipe.ingredientLines?.count ?? 0) ingredients")
+                                Text(recipe.listSubtitle)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -96,9 +117,44 @@ struct RecipesView: View {
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search recipes"
+                prompt: "Search name or meal type"
             )
             .toolbar {
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            selectedMealTypeFilterID = nil
+                        } label: {
+                            mealTypeFilterMenuLabel(
+                                "All Meal Types",
+                                isSelected: selectedMealTypeFilterID == nil
+                            )
+                        }
+
+                        if !mealTypes.isEmpty {
+                            Divider()
+
+                            ForEach(mealTypes) { mealType in
+                                Button {
+                                    selectedMealTypeFilterID = mealType.id
+                                } label: {
+                                    mealTypeFilterMenuLabel(
+                                        mealType.name,
+                                        isSelected: selectedMealTypeFilterID == mealType.id
+                                    )
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(
+                            mealTypeFilterTitle,
+                            systemImage: selectedMealTypeFilterID == nil
+                                ? "line.3.horizontal.decrease.circle"
+                                : "line.3.horizontal.decrease.circle.fill"
+                        )
+                    }
+                }
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -169,6 +225,15 @@ struct RecipesView: View {
             .onChange(of: selectedRecipeID) { _, _ in
                 openSelectedRecipeIfNeeded()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func mealTypeFilterMenuLabel(_ title: String, isSelected: Bool) -> some View {
+        if isSelected {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Text(title)
         }
     }
 
@@ -264,7 +329,7 @@ private enum RecipeListSortMode {
     var nextSystemImage: String {
         switch self {
         case .name:
-            "star.leadinghalf.filled"
+            "star.circle.fill"
         case .rating:
             "characters.lowercase"
         }
@@ -334,6 +399,17 @@ private struct RecipeListRatingStars: View {
         default:
             "\(clampedRating) stars"
         }
+    }
+}
+
+private extension Recipe {
+    var listSubtitle: String {
+        let ingredientDescription = "\(ingredientLines?.count ?? 0) ingredients"
+        guard let mealTypeName = mealType?.name, !mealTypeName.isEmpty else {
+            return ingredientDescription
+        }
+
+        return "\(mealTypeName) | \(ingredientDescription)"
     }
 }
 
