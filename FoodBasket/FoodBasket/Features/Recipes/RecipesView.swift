@@ -22,6 +22,7 @@ struct RecipesView: View {
     @State private var showingImportError = false
     @State private var runningImportTask: Task<Void, Never>?
     @State private var searchText = ""
+    @State private var sortMode = RecipeListSortMode.name
 
     init(selectedRecipeID: Binding<UUID?> = .constant(nil)) {
         _selectedRecipeID = selectedRecipeID
@@ -44,11 +45,17 @@ struct RecipesView: View {
 
     private var filteredRecipes: [Recipe] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSearchText.isEmpty else { return recipes }
+        let visibleRecipes: [Recipe]
 
-        return recipes.filter {
-            $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+        if trimmedSearchText.isEmpty {
+            visibleRecipes = recipes
+        } else {
+            visibleRecipes = recipes.filter {
+                $0.name.localizedCaseInsensitiveContains(trimmedSearchText)
+            }
         }
+
+        return sortMode.sort(visibleRecipes)
     }
 
     var body: some View {
@@ -67,8 +74,10 @@ struct RecipesView: View {
                         HStack(spacing: 12) {
                             RecipeThumbnailView(photoData: recipe.photoData)
 
-                            VStack(alignment: .leading) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(recipe.name)
+                                RecipeListRatingStars(rating: recipe.rating)
+                                
                                 Text("\(recipe.ingredientLines?.count ?? 0) ingredients")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -90,6 +99,17 @@ struct RecipesView: View {
                 prompt: "Search recipes"
             )
             .toolbar {
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        sortMode.toggle()
+                    } label: {
+                        Label(sortMode.nextSortTitle, systemImage: sortMode.nextSystemImage)
+                    }
+                }
+                
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
@@ -108,6 +128,7 @@ struct RecipesView: View {
                         Label("Add Recipe", systemImage: "plus")
                     }
                 }
+                
             }
             .sheet(isPresented: $showingAddRecipe) {
                 NavigationStack {
@@ -232,6 +253,86 @@ struct RecipesView: View {
             }
 
             modelContext.delete(recipe)
+        }
+    }
+}
+
+private enum RecipeListSortMode {
+    case name
+    case rating
+
+    var nextSystemImage: String {
+        switch self {
+        case .name:
+            "star.leadinghalf.filled"
+        case .rating:
+            "characters.uppercase"
+        }
+    }
+
+    var nextSortTitle: String {
+        switch self {
+        case .name:
+            "Sort by Star Rating"
+        case .rating:
+            "Sort by Name"
+        }
+    }
+
+    mutating func toggle() {
+        switch self {
+        case .name:
+            self = .rating
+        case .rating:
+            self = .name
+        }
+    }
+
+    func sort(_ recipes: [Recipe]) -> [Recipe] {
+        switch self {
+        case .name:
+            recipes.sorted(by: sortByName)
+        case .rating:
+            recipes.sorted { lhs, rhs in
+                if lhs.rating != rhs.rating {
+                    return lhs.rating > rhs.rating
+                }
+
+                return sortByName(lhs, rhs)
+            }
+        }
+    }
+
+    private func sortByName(_ lhs: Recipe, _ rhs: Recipe) -> Bool {
+        lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+}
+
+private struct RecipeListRatingStars: View {
+    let rating: Int
+
+    private var clampedRating: Int {
+        min(max(rating, 0), 5)
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(1...5, id: \.self) { star in
+                Image(systemName: star <= clampedRating ? "star.fill" : "star")
+            }
+        }
+        .font(.caption2)
+        .fontWeight(.medium)
+        .foregroundStyle(.yellow)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        switch clampedRating {
+        case 1:
+            "1 star"
+        default:
+            "\(clampedRating) stars"
         }
     }
 }
