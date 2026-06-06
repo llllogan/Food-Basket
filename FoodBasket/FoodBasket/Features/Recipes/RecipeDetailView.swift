@@ -12,6 +12,10 @@ import UIKit
 struct RecipeDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
+    @Query(sort: [
+        SortDescriptor(\PlannedMealPortion.dayOffset),
+        SortDescriptor(\PlannedMealPortion.sortOrder),
+    ]) private var mealPortions: [PlannedMealPortion]
     let recipe: Recipe
     @State private var showingAddIngredient = false
     @State private var showingEditRecipe = false
@@ -57,6 +61,66 @@ struct RecipeDetailView: View {
     private var currentWeekPlan: WeekPlan? {
         plans.first {
             Calendar.current.isDate($0.weekStarting, inSameDayAs: planWeekStarting)
+        }
+    }
+
+    private var currentWeekRecipeMeals: [PlannedMeal] {
+        (currentWeekPlan?.plannedMeals ?? [])
+            .filter { $0.recipe?.id == recipe.id }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var currentWeekRecipePortions: [PlannedMealPortion] {
+        guard let currentWeekPlan else { return [] }
+
+        let mealIDs = Set(currentWeekRecipeMeals.map(\.id))
+        return mealPortions
+            .filter { portion in
+                let belongsToCurrentWeek = portion.weekPlan?.id == currentWeekPlan.id ||
+                    portion.plannedMeal?.weekPlan?.id == currentWeekPlan.id
+                guard belongsToCurrentWeek,
+                      let plannedMeal = portion.plannedMeal else {
+                    return false
+                }
+
+                return mealIDs.contains(plannedMeal.id)
+            }
+            .sorted { lhs, rhs in
+                if lhs.dayOffset != rhs.dayOffset {
+                    return lhs.dayOffset < rhs.dayOffset
+                }
+
+                return lhs.sortOrder < rhs.sortOrder
+            }
+    }
+
+    private var isIncludedInThisWeek: Bool {
+        !currentWeekRecipeMeals.isEmpty
+    }
+
+    private var currentWeekMealMultiplier: Double {
+        currentWeekRecipeMeals.reduce(0) { total, meal in
+            total + max(meal.quantityMultiplier, 0)
+        }
+    }
+
+    private var currentWeekRecipePortionText: String {
+        let count = currentWeekRecipePortions.count
+        return "\(count) \(count == 1 ? "portion" : "portions")"
+    }
+
+    private var currentWeekMealMultiplierText: String {
+        "Having \(currentWeekMealFrequencyText) this week"
+    }
+
+    private var currentWeekMealFrequencyText: String {
+        switch currentWeekMealMultiplier {
+        case 1:
+            "once"
+        case 2:
+            "twice"
+        default:
+            "\(formattedCount(currentWeekMealMultiplier)) times"
         }
     }
 
@@ -127,9 +191,76 @@ struct RecipeDetailView: View {
 
     private var heroImageRow: some View {
         RecipeHeroImageView(photoData: recipe.photoData, takePhoto: takePhoto)
+            .overlay(alignment: .bottom) {
+                if isIncludedInThisWeek {
+                    thisWeekMealMultiplierControl
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 18)
+                }
+            }
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+    }
+
+    private var thisWeekMealMultiplierControl: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                
+                Text(currentWeekMealMultiplierText)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(currentWeekRecipePortionText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 10)
+
+            HStack(spacing: 8) {
+                mealMultiplierEditButton(
+                    systemImage: "minus",
+                    accessibilityLabel: "Decrease meal multiplier"
+                ) {
+                    adjustThisWeekMealMultiplier(by: -1)
+                }
+                .disabled(currentWeekMealMultiplier <= 0)
+
+                mealMultiplierEditButton(
+                    systemImage: "plus",
+                    accessibilityLabel: "Increase meal multiplier"
+                ) {
+                    adjustThisWeekMealMultiplier(by: 1)
+                }
+            }
+        }
+        .padding(.vertical, 11)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 16, x: 0, y: 8)
+        .frame(maxWidth: 380)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func mealMultiplierEditButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.bold))
+                .frame(width: 34, height: 34)
+                .background(Color(uiColor: .systemBackground).opacity(0.9), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color(uiColor: .label))
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var recipeSummaryRow: some View {
@@ -382,6 +513,79 @@ struct RecipeDetailView: View {
                     plannedMeal: meal
                 )
             )
+        }
+    }
+
+    private func adjustThisWeekMealMultiplier(by delta: Double) {
+        guard delta != 0 else { return }
+
+        setThisWeekMealMultiplier(currentWeekMealMultiplier + delta)
+        try? modelContext.save()
+        playMealMultiplierEditHaptic()
+    }
+
+    private func setThisWeekMealMultiplier(_ multiplier: Double) {
+        guard let plan = currentWeekPlan,
+              let meal = currentWeekRecipeMeals.first else { return }
+
+        let clampedMultiplier = max(multiplier, 0)
+
+        guard clampedMultiplier > 0 else {
+            removeFromThisWeek()
+            return
+        }
+
+        let portions = currentWeekRecipePortions
+        let duplicateMeals = currentWeekRecipeMeals.dropFirst()
+
+        for portion in portions {
+            portion.weekPlan = plan
+            portion.plannedMeal = meal
+        }
+
+        for duplicateMeal in duplicateMeals {
+            modelContext.delete(duplicateMeal)
+        }
+
+        meal.quantityMultiplier = clampedMultiplier
+        syncPortions(for: meal, in: plan, existingPortions: portions)
+    }
+
+    private func removeFromThisWeek() {
+        for portion in currentWeekRecipePortions {
+            modelContext.delete(portion)
+        }
+
+        for meal in currentWeekRecipeMeals {
+            modelContext.delete(meal)
+        }
+    }
+
+    private func syncPortions(
+        for meal: PlannedMeal,
+        in plan: WeekPlan,
+        existingPortions: [PlannedMealPortion]
+    ) {
+        let expectedCount = PlannedMealPortion.portionCount(for: meal)
+
+        if existingPortions.count < expectedCount {
+            let firstSortOrder = nextMondayPortionSortOrder(for: plan)
+            let missingCount = expectedCount - existingPortions.count
+
+            for index in 0..<missingCount {
+                modelContext.insert(
+                    PlannedMealPortion(
+                        dayOffset: 0,
+                        sortOrder: firstSortOrder + index,
+                        weekPlan: plan,
+                        plannedMeal: meal
+                    )
+                )
+            }
+        } else if existingPortions.count > expectedCount {
+            for portion in existingPortions.suffix(existingPortions.count - expectedCount) {
+                modelContext.delete(portion)
+            }
         }
     }
 
@@ -653,8 +857,8 @@ struct RecipeDetailView: View {
 
     private func duplicateThisWeekUpdateMessage(for update: ThisWeekDuplicateUpdate) -> String {
         """
-        This recipe has been added already. Do you want to increase \
-        the recipe ingredients count to \(formattedCount(update.updatedIngredientCount))?
+        This recipe is already in This Week. Do you want to increase \
+        the meal multiplier to \(formattedCount(update.updatedIngredientCount))x?
         """
     }
 
@@ -671,7 +875,7 @@ struct RecipeDetailView: View {
                 title: Text("Recipe Already Added"),
                 message: Text(duplicateThisWeekUpdateMessage(for: update)),
                 primaryButton: .cancel(Text("Cancel")),
-                secondaryButton: .default(Text("Update count")) {
+                secondaryButton: .default(Text("Update multiplier")) {
                     updateThisWeekCount(for: update)
                 }
             )
@@ -690,6 +894,10 @@ struct RecipeDetailView: View {
 
     private func playAddToWeekHaptic() {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func playMealMultiplierEditHaptic() {
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 
     private func playRatingSelectionHaptic() {

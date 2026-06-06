@@ -246,7 +246,7 @@ private struct RecipeIngredientDetailFields: View {
             return "Recipe Details"
         }
 
-        return "Details in \(trimmedRecipeName)"
+        return "Details for \(trimmedRecipeName)"
     }
 
     var body: some View {
