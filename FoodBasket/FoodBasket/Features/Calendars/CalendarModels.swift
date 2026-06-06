@@ -13,6 +13,8 @@ struct CalendarListOption: Identifiable {
     let sourceTitle: String
 }
 
+extension CalendarListOption: ExternalListOption {}
+
 enum CalendarListDefaults {
     static let idKey = "lastCalendarID"
     static let nameKey = "lastCalendarName"

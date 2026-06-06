@@ -48,7 +48,7 @@ struct WeekPlanView: View {
     private let calendarWeekStarting = WeekPlanCalendar.mondayStart(containing: Date())
 
     init(showingIngredients: Bool = false) {
-        _selectedMode = State(initialValue: showingIngredients ? .groceryList : .calendar)
+        _selectedMode = State(initialValue: showingIngredients ? .groceryList : .list)
     }
 
     private var currentPlan: WeekPlan? {
@@ -291,16 +291,21 @@ struct WeekPlanView: View {
             }
             .sheet(isPresented: $showingCalendarListPicker) {
                 NavigationStack {
-                    CalendarListPickerView(calendars: calendarLists) { calendar in
+                    ExternalListPickerView(
+                        isCalendar: true,
+                        options: calendarLists
+                    ) { calendar in
                         addCalendarEvents(to: calendar)
                     }
                 }
             }
             .sheet(isPresented: $showingSyncCalendarPicker) {
                 NavigationStack {
-                    CalendarListPickerView(calendars: syncCalendarLists) { calendar in
+                    ExternalListPickerView(
+                        isCalendar: true,
+                        options: syncCalendarLists
+                    ) { calendar in
                         rememberSyncCalendar(calendar)
-                        showingSyncCalendarPicker = false
                         Task {
                             await performCalendarAutomation()
                         }
@@ -309,7 +314,10 @@ struct WeekPlanView: View {
             }
             .sheet(isPresented: $showingReminderListPicker) {
                 NavigationStack {
-                    ReminderListPickerView(lists: reminderLists) { list in
+                    ExternalListPickerView(
+                        isCalendar: false,
+                        options: reminderLists
+                    ) { list in
                         addReminders(to: list)
                     }
                 }

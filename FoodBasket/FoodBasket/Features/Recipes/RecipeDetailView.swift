@@ -166,7 +166,10 @@ struct RecipeDetailView: View {
         }
         .sheet(isPresented: $showingReminderListPicker) {
             NavigationStack {
-                ReminderListPickerView(lists: reminderLists) { list in
+                ExternalListPickerView(
+                    isCalendar: false,
+                    options: reminderLists
+                ) { list in
                     addReminders(to: list)
                 }
             }

@@ -13,6 +13,8 @@ struct ReminderListOption: Identifiable {
     let sourceTitle: String
 }
 
+extension ReminderListOption: ExternalListOption {}
+
 struct ReminderExportAlert: Identifiable {
     let id = UUID()
     let title: String
