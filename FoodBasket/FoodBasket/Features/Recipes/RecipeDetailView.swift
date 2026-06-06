@@ -22,6 +22,7 @@ struct RecipeDetailView: View {
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
     @State private var exportAlert: ReminderExportAlert?
+    @State private var isScrubbingRating = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
 
@@ -81,7 +82,7 @@ struct RecipeDetailView: View {
             
             HStack {
                 groceryListButton
-                ratingMenu
+                ratingPicker
             }
             .listRowSeparator(.hidden)
             .padding(.bottom, -15)
@@ -261,25 +262,51 @@ struct RecipeDetailView: View {
         }
     }
 
-    private var ratingMenu: some View {
-        Menu {
-            ForEach(1...5, id: \.self) { stars in
-                Button {
-                    setRating(stars)
-                } label: {
-                    Label(
-                        ratingOptionTitle(for: stars),
-                        systemImage: stars == clampedRecipeRating ? "checkmark" : "star"
-                    )
-                }
-            }
-        } label: {
+    private var ratingPicker: some View {
+        Button {} label: {
             ratingStars(for: clampedRecipeRating)
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity)
                 .fontWeight(.bold)
         }
         .buttonStyle(.bordered)
+        .overlay {
+            GeometryReader { proxy in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                            .onChanged { value in
+                                guard value.isScrubbing else { return }
+
+                                isScrubbingRating = true
+                                setRating(at: value.location.x, in: proxy.size.width)
+                            }
+                            .onEnded { value in
+                                if isScrubbingRating {
+                                    setRating(at: value.location.x, in: proxy.size.width)
+                                } else {
+                                    setTappedRating(at: value.location.x, in: proxy.size.width)
+                                }
+
+                                isScrubbingRating = false
+                            }
+                    )
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Recipe rating")
+        .accessibilityValue(ratingAccessibilityValue)
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                setRating(clampedRecipeRating + 1)
+            case .decrement:
+                setRating(clampedRecipeRating - 1)
+            @unknown default:
+                break
+            }
+        }
     }
 
     private func ratingStars(for rating: Int) -> some View {
@@ -448,16 +475,57 @@ struct RecipeDetailView: View {
     }
 
     private func setRating(_ rating: Int) {
-        recipe.rating = min(max(rating, 1), 5)
+        let clampedRating = min(max(rating, 0), 5)
+        guard recipe.rating != clampedRating else { return }
+
+        recipe.rating = clampedRating
         try? modelContext.save()
+        playRatingSelectionHaptic()
     }
 
-    private func ratingOptionTitle(for stars: Int) -> String {
-        stars == 1 ? "1 Star" : "\(stars) Stars"
+    private func setRating(at xPosition: CGFloat, in width: CGFloat) {
+        setRating(rating(at: xPosition, in: width))
+    }
+
+    private func setTappedRating(at xPosition: CGFloat, in width: CGFloat) {
+        let tappedRating = rating(at: xPosition, in: width)
+
+        if tappedRating == clampedRecipeRating {
+            setRating(tappedRating - 1)
+        } else {
+            setRating(tappedRating)
+        }
+    }
+
+    private func rating(at xPosition: CGFloat, in width: CGFloat) -> Int {
+        guard width > 0 else { return 1 }
+
+        let clampedXPosition = min(max(xPosition, 0), width)
+        let rating = Int(clampedXPosition / (width / 5)) + 1
+        return min(rating, 5)
+    }
+
+    private var ratingAccessibilityValue: String {
+        switch clampedRecipeRating {
+        case 1:
+            "1 star"
+        default:
+            "\(clampedRecipeRating) stars"
+        }
     }
 
     private func playGroceryMenuHaptic() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private func playRatingSelectionHaptic() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+}
+
+private extension DragGesture.Value {
+    var isScrubbing: Bool {
+        abs(translation.width) > 4 || abs(translation.height) > 4
     }
 }
 

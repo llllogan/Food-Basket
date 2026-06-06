@@ -266,7 +266,7 @@ private enum RecipeListSortMode {
         case .name:
             "star.leadinghalf.filled"
         case .rating:
-            "characters.uppercase"
+            "characters.lowercase"
         }
     }
 
