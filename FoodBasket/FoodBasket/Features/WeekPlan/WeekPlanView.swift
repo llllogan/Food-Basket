@@ -13,7 +13,6 @@ struct WeekPlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
-    @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Query(sort: [
         SortDescriptor(\PlannedMealPortion.dayOffset),
         SortDescriptor(\PlannedMealPortion.sortOrder),
@@ -26,8 +25,6 @@ struct WeekPlanView: View {
     @State private var calendarExporter = CalendarEventExporter()
     @State private var calendarLists: [CalendarListOption] = []
     @State private var showingCalendarListPicker = false
-    @State private var syncCalendarLists: [CalendarListOption] = []
-    @State private var showingSyncCalendarPicker = false
     @State private var isUpdatingCalendar = false
     @State private var remindersExporter = RemindersExporter()
     @State private var reminderLists: [ReminderListOption] = []
@@ -124,7 +121,7 @@ struct WeekPlanView: View {
     }
 
     private var excludedCalendarMealTypeIDs: Set<UUID> {
-        Self.mealTypeIDs(from: excludedCalendarMealTypeIDsRaw)
+        WeekPlanCalendarFilterDefaults.mealTypeIDs(from: excludedCalendarMealTypeIDsRaw)
     }
 
     private var mealDaySections: [WeekPlanMealDaySection] {
@@ -294,19 +291,6 @@ struct WeekPlanView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingSyncCalendarPicker) {
-                NavigationStack {
-                    ExternalListPickerView(
-                        isCalendar: true,
-                        options: syncCalendarLists
-                    ) { calendar in
-                        rememberSyncCalendar(calendar)
-                        Task {
-                            await performCalendarAutomation()
-                        }
-                    }
-                }
-            }
             .sheet(isPresented: $showingReminderListPicker) {
                 NavigationStack {
                     ExternalListPickerView(
@@ -412,18 +396,10 @@ struct WeekPlanView: View {
 
     @ViewBuilder
     private var contentList: some View {
-        switch selectedMode {
-        case .settings:
-            List {
-                settingsRows
-            }
-            .listStyle(.insetGrouped)
-        default:
-            List {
-                selectedRows
-            }
-            .listStyle(.plain)
+        List {
+            selectedRows
         }
+        .listStyle(.plain)
     }
 
     @ViewBuilder
@@ -435,8 +411,6 @@ struct WeekPlanView: View {
             mealRows
         case .groceryList:
             groceryRows
-        case .settings:
-            settingsRows
         }
     }
 
@@ -449,118 +423,6 @@ struct WeekPlanView: View {
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
         .listRowSeparator(.hidden)
-    }
-
-    @ViewBuilder
-    private var settingsRows: some View {
-        iCalSyncSettingsSection
-        calendarViewSettingsSection
-        weeklyCleanupSettingsSection
-        exportDefaultsSettingsSection
-    }
-
-    @ViewBuilder
-    private var iCalSyncSettingsSection: some View {
-        Section("iCal Sync") {
-            Toggle("Sync to iCal", isOn: $syncToICal)
-
-            if syncToICal {
-                Button {
-                    prepareSyncCalendarSelection()
-                } label: {
-                    HStack {
-                        Text("Calendar")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Text(syncCalendarName.isEmpty ? "Choose" : syncCalendarName)
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var calendarViewSettingsSection: some View {
-        Section {
-            if mealTypes.isEmpty {
-                Text("Add meal types to recipes to filter the calendar view.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(mealTypes) { mealType in
-                    Toggle(mealType.name, isOn: calendarMealTypeBinding(for: mealType))
-                }
-            }
-
-            Toggle("No meal type", isOn: calendarMealsWithoutMealTypeBinding)
-        } header: {
-            Text("Calendar View")
-        } footer: {
-            Text("Only selected meal types appear in the This Week calendar view.")
-        }
-    }
-
-    @ViewBuilder
-    private var weeklyCleanupSettingsSection: some View {
-        Section("Weekly Cleanup") {
-            Toggle("Remove meals at the start of a new week", isOn: $removeMealsAtNewWeek)
-
-            if removeMealsAtNewWeek {
-                Picker("Week starts", selection: $weekStartDay) {
-                    ForEach(WeekStartDay.allCases) { day in
-                        Text(day.title).tag(day.rawValue)
-                    }
-                }
-            }
-        }
-    }
-
-    private var exportDefaultsSettingsSection: some View {
-        Section {
-            Button(role: .destructive) {
-                clearDefaultRemindersList()
-            } label: {
-                defaultExportClearButtonLabel(
-                    title: "Clear Default Reminders List",
-                    currentValue: lastRemindersListName.isEmpty ? "Not set" : lastRemindersListName
-                )
-            }
-            .disabled(lastRemindersListID.isEmpty)
-
-            Button(role: .destructive) {
-                clearDefaultCalendar()
-            } label: {
-                defaultExportClearButtonLabel(
-                    title: "Clear Default Calendar",
-                    currentValue: lastCalendarName.isEmpty ? "Not set" : lastCalendarName
-                )
-            }
-            .disabled(lastCalendarID.isEmpty)
-        } header: {
-            Text("Export Defaults")
-        } footer: {
-            Text("Food Basket uses these defaults for quick grocery and calendar exports.")
-        }
-    }
-
-    private func defaultExportClearButtonLabel(
-        title: String,
-        currentValue: String
-    ) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(currentValue)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
     }
 
     @ViewBuilder
@@ -757,7 +619,8 @@ struct WeekPlanView: View {
     private var modePicker: some View {
         Picker("This Week View", selection: selectedModeBinding) {
             ForEach(WeekPlanDisplayMode.allCases) { mode in
-                modePickerLabel(for: mode)
+                Text(mode.title)
+                    .tag(mode)
             }
         }
         .pickerStyle(.segmented)
@@ -765,19 +628,6 @@ struct WeekPlanView: View {
         .background {
             Capsule()
                 .fill(.ultraThinMaterial.opacity(0.9))
-        }
-    }
-
-    @ViewBuilder
-    private func modePickerLabel(for mode: WeekPlanDisplayMode) -> some View {
-        switch mode {
-        case .settings:
-            Image(systemName: "gearshape")
-                .accessibilityLabel(Text(mode.title))
-                .tag(mode)
-        default:
-            Text(mode.title)
-                .tag(mode)
         }
     }
 
@@ -808,28 +658,6 @@ struct WeekPlanView: View {
                 }
 
                 showingCalendarListPicker = true
-            } catch {
-                showCalendarError(error)
-            }
-        }
-    }
-
-    private func prepareSyncCalendarSelection() {
-        isUpdatingCalendar = true
-
-        Task { @MainActor in
-            defer {
-                isUpdatingCalendar = false
-            }
-
-            do {
-                syncCalendarLists = try await calendarExporter.availableCalendars()
-
-                guard !syncCalendarLists.isEmpty else {
-                    throw CalendarExportError.noWritableCalendars
-                }
-
-                showingSyncCalendarPicker = true
             } catch {
                 showCalendarError(error)
             }
@@ -952,11 +780,6 @@ struct WeekPlanView: View {
     private func remember(_ calendar: CalendarListOption) {
         lastCalendarID = calendar.id
         lastCalendarName = calendar.title
-    }
-
-    private func rememberSyncCalendar(_ calendar: CalendarListOption) {
-        syncCalendarID = calendar.id
-        syncCalendarName = calendar.title
     }
 
     private func remember(_ list: ReminderListOption) {
@@ -1094,49 +917,6 @@ struct WeekPlanView: View {
         return !excludedCalendarMealTypeIDs.contains(mealTypeID)
     }
 
-    private func calendarMealTypeBinding(for mealType: MealType) -> Binding<Bool> {
-        Binding {
-            !excludedCalendarMealTypeIDs.contains(mealType.id)
-        } set: { isIncluded in
-            setCalendarMealType(mealType, isIncluded: isIncluded)
-        }
-    }
-
-    private var calendarMealsWithoutMealTypeBinding: Binding<Bool> {
-        Binding {
-            !excludeCalendarMealsWithoutMealType
-        } set: { isIncluded in
-            excludeCalendarMealsWithoutMealType = !isIncluded
-        }
-    }
-
-    private func setCalendarMealType(_ mealType: MealType, isIncluded: Bool) {
-        var excludedIDs = excludedCalendarMealTypeIDs
-
-        if isIncluded {
-            excludedIDs.remove(mealType.id)
-        } else {
-            excludedIDs.insert(mealType.id)
-        }
-
-        excludedCalendarMealTypeIDsRaw = Self.rawMealTypeIDs(from: excludedIDs)
-    }
-
-    private static func mealTypeIDs(from rawValue: String) -> Set<UUID> {
-        Set(
-            rawValue
-                .split(separator: ",")
-                .compactMap { UUID(uuidString: String($0)) }
-        )
-    }
-
-    private static func rawMealTypeIDs(from ids: Set<UUID>) -> String {
-        ids
-            .map(\.uuidString)
-            .sorted()
-            .joined(separator: ",")
-    }
-
     private func movePortions(withIDs idStrings: [String], to dayOffset: Int) {
         let ids = Set(idStrings.compactMap(UUID.init(uuidString:)))
         let portions = currentPlanPortions.filter { ids.contains($0.id) }
@@ -1245,7 +1025,6 @@ enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
     case list
     case calendar
     case groceryList
-    case settings
 
     var id: Self { self }
 
@@ -1257,15 +1036,28 @@ enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
             "Calendar"
         case .groceryList:
             "Grocery List"
-        case .settings:
-            "Settings"
         }
     }
 }
 
-private enum WeekPlanCalendarFilterDefaults {
+enum WeekPlanCalendarFilterDefaults {
     static let excludedMealTypeIDsKey = "calendarViewExcludedMealTypeIDs"
     static let excludeMealsWithoutMealTypeKey = "calendarViewExcludeMealsWithoutMealType"
+
+    static func mealTypeIDs(from rawValue: String) -> Set<UUID> {
+        Set(
+            rawValue
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) }
+        )
+    }
+
+    static func rawMealTypeIDs(from ids: Set<UUID>) -> String {
+        ids
+            .map(\.uuidString)
+            .sorted()
+            .joined(separator: ",")
+    }
 }
 
 private enum WeekPlanGroceryListTipDefaults {

@@ -50,6 +50,12 @@ struct ContentView: View {
                     Label("Ingredients", systemImage: "carrot")
                 }
                 .tag(FoodBasketTab.ingredients)
+
+            WeekPlanSettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .tag(FoodBasketTab.settings)
         }
         .fontDesign(.rounded)
         .dismissKeyboardOnTapOutsideTextInputs()
@@ -81,6 +87,7 @@ enum FoodBasketTab: Hashable {
     case recipes
     case weekPlan
     case ingredients
+    case settings
 }
 
 #Preview("App") {
@@ -108,5 +115,12 @@ enum FoodBasketTab: Hashable {
     let previewData = EmptyPreviewData()
 
     ContentView(selectedTab: .ingredients)
+        .modelContainer(previewData.container)
+}
+
+#Preview("Empty Settings Tab") {
+    let previewData = EmptyPreviewData()
+
+    ContentView(selectedTab: .settings)
         .modelContainer(previewData.container)
 }

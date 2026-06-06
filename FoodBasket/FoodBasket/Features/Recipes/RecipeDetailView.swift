@@ -224,8 +224,6 @@ struct RecipeDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer(minLength: 10)
-
             HStack(spacing: 8) {
                 mealMultiplierEditButton(
                     systemImage: "minus",
