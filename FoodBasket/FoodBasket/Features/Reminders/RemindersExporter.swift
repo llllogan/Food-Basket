@@ -11,6 +11,7 @@ import Foundation
 @MainActor
 final class RemindersExporter {
     private static let automaticallyAddedTag = "#added_automatically"
+    private static let sourcePrefix = "source="
 
     private let eventStore = EKEventStore()
 
@@ -34,29 +35,40 @@ final class RemindersExporter {
             }
     }
 
-    func export(_ lines: [ShoppingListLine], to list: ReminderListOption) async throws {
+    func export(
+        _ lines: [ShoppingListLine],
+        to list: ReminderListOption,
+        sourceIdentifier: String? = nil
+    ) async throws {
         try await requestAccessIfNeeded()
 
         guard let calendar = eventStore.calendar(withIdentifier: list.id) else {
             throw RemindersExportError.listUnavailable
         }
 
-        try export(lines, to: calendar)
+        try export(lines, to: calendar, sourceIdentifier: sourceIdentifier)
     }
 
-    private func export(_ lines: [ShoppingListLine], to calendar: EKCalendar) throws {
+    private func export(
+        _ lines: [ShoppingListLine],
+        to calendar: EKCalendar,
+        sourceIdentifier: String?
+    ) throws {
         for line in lines {
             let reminder = EKReminder(eventStore: eventStore)
             reminder.calendar = calendar
             reminder.title = "\(line.ingredientName) - \(line.formattedAmount)"
-            reminder.notes = Self.automaticallyAddedTag
+            reminder.notes = Self.notes(for: sourceIdentifier)
             try eventStore.save(reminder, commit: false)
         }
 
         try eventStore.commit()
     }
 
-    func clearAutomaticallyAddedReminders(from list: ReminderListOption) async throws -> Int {
+    func clearAutomaticallyAddedReminders(
+        from list: ReminderListOption,
+        sourceIdentifier: String? = nil
+    ) async throws -> Int {
         try await requestAccessIfNeeded()
 
         guard let calendar = eventStore.calendar(withIdentifier: list.id) else {
@@ -71,7 +83,7 @@ final class RemindersExporter {
             }
         }
         let automaticallyAddedReminders = reminders.filter {
-            $0.notes == Self.automaticallyAddedTag
+            Self.isAutomaticallyAdded($0, sourceIdentifier: sourceIdentifier)
         }
 
         for reminder in automaticallyAddedReminders {
@@ -83,6 +95,36 @@ final class RemindersExporter {
         }
 
         return automaticallyAddedReminders.count
+    }
+
+    private static func notes(for sourceIdentifier: String?) -> String {
+        let trimmedSourceIdentifier = sourceIdentifier?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard !trimmedSourceIdentifier.isEmpty else {
+            return automaticallyAddedTag
+        }
+
+        return [
+            automaticallyAddedTag,
+            "\(sourcePrefix)\(trimmedSourceIdentifier)",
+        ].joined(separator: "\n")
+    }
+
+    private static func isAutomaticallyAdded(
+        _ reminder: EKReminder,
+        sourceIdentifier: String?
+    ) -> Bool {
+        let noteLines = Set((reminder.notes ?? "").components(separatedBy: .newlines))
+        guard noteLines.contains(automaticallyAddedTag) else {
+            return false
+        }
+
+        guard let sourceIdentifier else {
+            return true
+        }
+
+        return noteLines.contains("\(sourcePrefix)\(sourceIdentifier)")
     }
 
     private func requestAccessIfNeeded() async throws {

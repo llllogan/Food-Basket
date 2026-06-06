@@ -17,9 +17,44 @@ struct RecipeDetailView: View {
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
     @State private var substitutedIngredientLine: RecipeIngredient?
+    @State private var remindersExporter = RemindersExporter()
+    @State private var reminderLists: [ReminderListOption] = []
+    @State private var showingReminderListPicker = false
+    @State private var isUpdatingReminders = false
+    @State private var exportAlert: ReminderExportAlert?
+    @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
+    @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
 
     private var ingredientLines: [RecipeIngredient] {
         (recipe.ingredientLines ?? []).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var shoppingListLines: [ShoppingListLine] {
+        ShoppingListLine.makeLines(for: recipe)
+    }
+
+    private var rememberedReminderList: ReminderListOption? {
+        guard !lastRemindersListID.isEmpty, !lastRemindersListName.isEmpty else {
+            return nil
+        }
+
+        return ReminderListOption(
+            id: lastRemindersListID,
+            title: lastRemindersListName,
+            sourceTitle: ""
+        )
+    }
+
+    private var reminderButtonTitle: String {
+        rememberedReminderList == nil ? "Add to ..." : "Add to Grocery List"
+    }
+
+    private var reminderSourceIdentifier: String {
+        "recipe:\(recipe.id.uuidString)"
+    }
+
+    private var clampedRecipeRating: Int {
+        min(max(recipe.rating, 0), 5)
     }
 
     var body: some View {
@@ -45,43 +80,8 @@ struct RecipeDetailView: View {
             .listRowBackground(Color.clear)
             
             HStack {
-                
-                /*
-                 The text colour on the first button should be normal
-                 The text colour of the stars should be yellow
-                 */
-                
-                Button {} label: {
-                    Text("Add to Grocery List")
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity)
-                        .foregroundStyle(.primary)
-                    
-                    /*
-                     If there is no default reminders list saved by this app, the buttn text should say 'Add to ...'
-                     Pressing the buttin in that state should show the reminders list picker sheet
-                     The user should be able to long press on the button which will show a menu
-                     That menu will have three buttons 1. Add to DEFAULT_LIST 2. Add to Reminders 3. Removed from DEFAULT LIST
-                     */
-                }
-                .buttonStyle(.bordered)
-                
-                Button {} label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: "star")
-                        Image(systemName: "star")
-                        Image(systemName: "star")
-                        Image(systemName: "star.fill")
-                        Image(systemName: "star.fill")
-                    }
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity)
-                    
-                    /*
-                     The user should be able to click on this button to see a menu showing all 5 star options. This should change the sf symbols in the button and saved in SwiftData against the recipe
-                     */
-                }
-                .buttonStyle(.bordered)
+                groceryListButton
+                ratingMenu
             }
             .listRowSeparator(.hidden)
             .padding(.bottom, -15)
@@ -162,6 +162,13 @@ struct RecipeDetailView: View {
                 AddIngredientToRecipeView(recipe: recipe)
             }
         }
+        .sheet(isPresented: $showingReminderListPicker) {
+            NavigationStack {
+                ReminderListPickerView(lists: reminderLists) { list in
+                    addReminders(to: list)
+                }
+            }
+        }
         .sheet(item: $substitutedIngredientLine) { line in
             NavigationStack {
                 SubstituteRecipeIngredientView(line: line)
@@ -179,6 +186,109 @@ struct RecipeDetailView: View {
         } message: {
             Text("A camera is not available on this device.")
         }
+        .alert(item: $exportAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+    }
+
+    private var groceryListButton: some View {
+        Menu {
+            reminderContextMenu
+        } label: {
+            groceryListButtonLabel
+        } primaryAction: {
+            addToRememberedReminderListOrChoose()
+        }
+        .buttonStyle(.bordered)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.35)
+                .onEnded { _ in
+                    playGroceryMenuHaptic()
+                }
+        )
+        .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+    }
+
+    @ViewBuilder
+    private var groceryListButtonLabel: some View {
+        if isUpdatingReminders {
+            ProgressView()
+                .controlSize(.small)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+        } else {
+            Text(reminderButtonTitle)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+                .foregroundColor(Color(uiColor: .label))
+        }
+    }
+
+    @ViewBuilder
+    private var reminderContextMenu: some View {
+        if let rememberedReminderList {
+            Button {
+                addReminders(to: rememberedReminderList)
+            } label: {
+                Label("Add to \(rememberedReminderList.title)", systemImage: "plus")
+            }
+            .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+
+            Button {
+                prepareReminderListSelection()
+            } label: {
+                Label("Add to Reminders", systemImage: "list.bullet")
+            }
+            .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+
+            Button(role: .destructive) {
+                clearReminders(from: rememberedReminderList)
+            } label: {
+                Label("Remove from \(rememberedReminderList.title)", systemImage: "trash")
+            }
+            .disabled(isUpdatingReminders)
+        } else {
+            Button {
+                prepareReminderListSelection()
+            } label: {
+                Label("Add to Reminders", systemImage: "list.bullet")
+            }
+            .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+        }
+    }
+
+    private var ratingMenu: some View {
+        Menu {
+            ForEach(1...5, id: \.self) { stars in
+                Button {
+                    setRating(stars)
+                } label: {
+                    Label(
+                        ratingOptionTitle(for: stars),
+                        systemImage: stars == clampedRecipeRating ? "checkmark" : "star"
+                    )
+                }
+            }
+        } label: {
+            ratingStars(for: clampedRecipeRating)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+                .fontWeight(.bold)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private func ratingStars(for rating: Int) -> some View {
+        HStack(spacing: 3) {
+            ForEach(1...5, id: \.self) { star in
+                Image(systemName: star <= rating ? "star.fill" : "star")
+            }
+        }
+        .foregroundStyle(.yellow)
     }
 
     @ViewBuilder
@@ -232,6 +342,122 @@ struct RecipeDetailView: View {
         line.recipe?.ingredientLines?.removeAll { $0.id == line.id }
         modelContext.delete(line)
         try? modelContext.save()
+    }
+
+    private func addToRememberedReminderListOrChoose() {
+        guard let rememberedReminderList else {
+            prepareReminderListSelection()
+            return
+        }
+
+        addReminders(to: rememberedReminderList)
+    }
+
+    private func prepareReminderListSelection() {
+        isUpdatingReminders = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingReminders = false
+            }
+
+            do {
+                reminderLists = try await remindersExporter.availableLists()
+
+                guard !reminderLists.isEmpty else {
+                    throw RemindersExportError.noWritableLists
+                }
+
+                showingReminderListPicker = true
+            } catch {
+                showRemindersError(error)
+            }
+        }
+    }
+
+    private func addReminders(to list: ReminderListOption) {
+        isUpdatingReminders = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingReminders = false
+            }
+
+            do {
+                try await remindersExporter.export(
+                    shoppingListLines,
+                    to: list,
+                    sourceIdentifier: reminderSourceIdentifier
+                )
+                remember(list)
+                exportAlert = ReminderExportAlert(
+                    title: "Grocery List Added",
+                    message: "\(shoppingListLines.count) items from \(recipe.name) were added to \(list.title)."
+                )
+            } catch {
+                showRemindersError(error, for: list)
+            }
+        }
+    }
+
+    private func clearReminders(from list: ReminderListOption) {
+        isUpdatingReminders = true
+
+        Task { @MainActor in
+            defer {
+                isUpdatingReminders = false
+            }
+
+            do {
+                let removedCount = try await remindersExporter.clearAutomaticallyAddedReminders(
+                    from: list,
+                    sourceIdentifier: reminderSourceIdentifier
+                )
+                exportAlert = ReminderExportAlert(
+                    title: "Grocery List Removed",
+                    message: "\(removedCount) items from \(recipe.name) were removed from \(list.title)."
+                )
+            } catch {
+                showRemindersError(error, for: list)
+            }
+        }
+    }
+
+    private func remember(_ list: ReminderListOption) {
+        lastRemindersListID = list.id
+        lastRemindersListName = list.title
+    }
+
+    private func forgetRememberedList(ifMatching list: ReminderListOption) {
+        guard list.id == lastRemindersListID else { return }
+        lastRemindersListID = ""
+        lastRemindersListName = ""
+    }
+
+    private func showRemindersError(_ error: Error, for list: ReminderListOption? = nil) {
+        if let list,
+           let remindersError = error as? RemindersExportError,
+           remindersError == .listUnavailable {
+            forgetRememberedList(ifMatching: list)
+        }
+
+        exportAlert = ReminderExportAlert(
+            title: "Unable to Update Reminders",
+            message: error.localizedDescription
+        )
+    }
+
+    private func setRating(_ rating: Int) {
+        recipe.rating = min(max(rating, 1), 5)
+        try? modelContext.save()
+    }
+
+    private func ratingOptionTitle(for stars: Int) -> String {
+        stars == 1 ? "1 Star" : "\(stars) Stars"
+    }
+
+    private func playGroceryMenuHaptic() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }
 

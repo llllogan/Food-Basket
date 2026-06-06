@@ -35,29 +35,46 @@ struct ShoppingListLine: Identifiable {
 
         for plannedMeal in plan.plannedMeals ?? [] {
             guard let recipe = plannedMeal.recipe else { continue }
-
-            for recipeLine in recipe.ingredientLines ?? [] {
-                guard let ingredient = recipeLine.ingredient else { continue }
-
-                let unitSymbol = ingredient.unit?.symbol ?? ""
-                let key = "\(ingredient.id.uuidString)-\(unitSymbol)"
-                let quantity = recipeLine.quantity * plannedMeal.quantityMultiplier
-
-                if linesByID[key] != nil {
-                    linesByID[key]?.quantity += quantity
-                } else {
-                    linesByID[key] = ShoppingListLine(
-                        ingredientID: ingredient.id,
-                        ingredientName: ingredient.name,
-                        categoryName: ingredient.category?.name ?? "Other",
-                        unitSymbol: unitSymbol,
-                        photoData: ingredient.photoData,
-                        quantity: quantity
-                    )
-                }
-            }
+            addLines(from: recipe, multiplier: plannedMeal.quantityMultiplier, to: &linesByID)
         }
 
+        return sortedLines(from: linesByID)
+    }
+
+    static func makeLines(for recipe: Recipe) -> [ShoppingListLine] {
+        var linesByID: [String: ShoppingListLine] = [:]
+        addLines(from: recipe, multiplier: 1, to: &linesByID)
+        return sortedLines(from: linesByID)
+    }
+
+    private static func addLines(
+        from recipe: Recipe,
+        multiplier: Double,
+        to linesByID: inout [String: ShoppingListLine]
+    ) {
+        for recipeLine in recipe.ingredientLines ?? [] {
+            guard let ingredient = recipeLine.ingredient else { continue }
+
+            let unitSymbol = ingredient.unit?.symbol ?? ""
+            let key = "\(ingredient.id.uuidString)-\(unitSymbol)"
+            let quantity = recipeLine.quantity * multiplier
+
+            if linesByID[key] != nil {
+                linesByID[key]?.quantity += quantity
+            } else {
+                linesByID[key] = ShoppingListLine(
+                    ingredientID: ingredient.id,
+                    ingredientName: ingredient.name,
+                    categoryName: ingredient.category?.name ?? "Other",
+                    unitSymbol: unitSymbol,
+                    photoData: ingredient.photoData,
+                    quantity: quantity
+                )
+            }
+        }
+    }
+
+    private static func sortedLines(from linesByID: [String: ShoppingListLine]) -> [ShoppingListLine] {
         return linesByID.values.sorted {
             if $0.categoryName == $1.categoryName {
                 return $0.ingredientName.localizedCaseInsensitiveCompare($1.ingredientName) == .orderedAscending

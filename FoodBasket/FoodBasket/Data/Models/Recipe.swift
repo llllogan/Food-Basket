@@ -15,6 +15,7 @@ final class Recipe {
     var method: String = ""
     var cookingTimeMinutes: Int = 0
     var serves: Int = 0
+    var rating: Int = 0
     @Attribute(.externalStorage) var photoData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \RecipeIngredient.recipe)
@@ -29,6 +30,7 @@ final class Recipe {
         method: String = "",
         cookingTimeMinutes: Int = 0,
         serves: Int = 0,
+        rating: Int = 0,
         photoData: Data? = nil,
         ingredientLines: [RecipeIngredient]? = [],
         plannedMeals: [PlannedMeal]? = []
@@ -38,6 +40,7 @@ final class Recipe {
         self.method = method
         self.cookingTimeMinutes = cookingTimeMinutes
         self.serves = serves
+        self.rating = rating
         self.photoData = photoData
         self.ingredientLines = ingredientLines
         self.plannedMeals = plannedMeals
