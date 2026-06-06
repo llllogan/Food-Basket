@@ -11,17 +11,25 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedTab = FoodBasketTab.recipes
+    @State private var selectedWeekPlanMode = WeekPlanDisplayMode.list
+    @State private var highlightedThisWeekPortionIDs: Set<UUID> = []
     @State private var selectedRecipeID: UUID?
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            RecipesView(selectedRecipeID: $selectedRecipeID)
+            RecipesView(
+                selectedRecipeID: $selectedRecipeID,
+                onOpenThisWeekCalendar: openThisWeekCalendar
+            )
                 .tabItem {
                     Label("Recipes", systemImage: "book")
                 }
                 .tag(FoodBasketTab.recipes)
 
-            WeekPlanView()
+            WeekPlanView(
+                selectedMode: $selectedWeekPlanMode,
+                highlightedPortionIDs: $highlightedThisWeekPortionIDs
+            )
                 .tabItem {
                     Label("This Week", systemImage: "refrigerator")
                 }
@@ -49,6 +57,12 @@ struct ContentView: View {
             selectedTab = .recipes
             selectedRecipeID = recipeID
         }
+    }
+
+    private func openThisWeekCalendar(highlightedPortionIDs: Set<UUID>) {
+        highlightedThisWeekPortionIDs = highlightedPortionIDs
+        selectedWeekPlanMode = .calendar
+        selectedTab = .weekPlan
     }
 }
 

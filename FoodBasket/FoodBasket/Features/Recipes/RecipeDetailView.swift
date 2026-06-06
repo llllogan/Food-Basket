@@ -17,6 +17,7 @@ struct RecipeDetailView: View {
         SortDescriptor(\PlannedMealPortion.sortOrder),
     ]) private var mealPortions: [PlannedMealPortion]
     let recipe: Recipe
+    let onOpenThisWeekCalendar: (Set<UUID>) -> Void
     @State private var showingAddIngredient = false
     @State private var showingEditRecipe = false
     @State private var showingCamera = false
@@ -29,6 +30,14 @@ struct RecipeDetailView: View {
     @State private var isScrubbingRating = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
+
+    init(
+        recipe: Recipe,
+        onOpenThisWeekCalendar: @escaping (Set<UUID>) -> Void = { _ in }
+    ) {
+        self.recipe = recipe
+        self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
+    }
 
     private var ingredientLines: [RecipeIngredient] {
         (recipe.ingredientLines ?? []).sorted { $0.sortOrder < $1.sortOrder }
@@ -430,10 +439,10 @@ struct RecipeDetailView: View {
             return
         }
 
-        createThisWeekMeal()
+        createThisWeekMeal(openCalendarAfterSave: true)
     }
 
-    private func createThisWeekMeal() {
+    private func createThisWeekMeal(openCalendarAfterSave: Bool) {
         let plan = SeedData.weekPlan(
             starting: planWeekStarting,
             existing: plans,
@@ -449,19 +458,25 @@ struct RecipeDetailView: View {
         modelContext.insert(meal)
 
         let firstSortOrder = nextMondayPortionSortOrder(for: plan)
+        var createdPortionIDs: Set<UUID> = []
+
         for index in 0..<PlannedMealPortion.portionCount(for: meal) {
-            modelContext.insert(
-                PlannedMealPortion(
-                    dayOffset: 0,
-                    sortOrder: firstSortOrder + index,
-                    weekPlan: plan,
-                    plannedMeal: meal
-                )
+            let portion = PlannedMealPortion(
+                dayOffset: 0,
+                sortOrder: firstSortOrder + index,
+                weekPlan: plan,
+                plannedMeal: meal
             )
+            createdPortionIDs.insert(portion.id)
+            modelContext.insert(portion)
         }
 
         try? modelContext.save()
         playAddToWeekHaptic()
+
+        if openCalendarAfterSave {
+            onOpenThisWeekCalendar(createdPortionIDs)
+        }
     }
 
     private func pendingDuplicateThisWeekUpdate() -> ThisWeekDuplicateUpdate? {
@@ -486,7 +501,7 @@ struct RecipeDetailView: View {
     private func updateThisWeekCount(for update: ThisWeekDuplicateUpdate) {
         guard let plan = currentWeekPlan,
               let meal = (plan.plannedMeals ?? []).first(where: { $0.id == update.mealID }) else {
-            createThisWeekMeal()
+            createThisWeekMeal(openCalendarAfterSave: false)
             return
         }
 

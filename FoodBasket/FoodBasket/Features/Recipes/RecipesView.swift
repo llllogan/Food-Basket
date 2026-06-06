@@ -14,6 +14,7 @@ struct RecipesView: View {
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Binding private var selectedRecipeID: UUID?
+    private let onOpenThisWeekCalendar: (Set<UUID>) -> Void
     @State private var navigationPath = NavigationPath()
     @State private var showingAddRecipe = false
     @State private var showingImportRecipeAlert = false
@@ -26,8 +27,12 @@ struct RecipesView: View {
     @State private var sortMode = RecipeListSortMode.name
     @State private var selectedMealTypeFilterID: UUID?
 
-    init(selectedRecipeID: Binding<UUID?> = .constant(nil)) {
+    init(
+        selectedRecipeID: Binding<UUID?> = .constant(nil),
+        onOpenThisWeekCalendar: @escaping (Set<UUID>) -> Void = { _ in }
+    ) {
         _selectedRecipeID = selectedRecipeID
+        self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
     }
 
     private var importURL: URL? {
@@ -256,7 +261,10 @@ struct RecipesView: View {
     @ViewBuilder
     private func recipeDestination(for recipeID: UUID) -> some View {
         if let recipe = recipes.first(where: { $0.id == recipeID }) {
-            RecipeDetailView(recipe: recipe)
+            RecipeDetailView(
+                recipe: recipe,
+                onOpenThisWeekCalendar: onOpenThisWeekCalendar
+            )
         } else {
             Text("Recipe not found.")
                 .foregroundStyle(.secondary)

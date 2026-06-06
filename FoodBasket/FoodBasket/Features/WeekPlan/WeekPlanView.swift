@@ -14,12 +14,15 @@ struct WeekPlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
+    @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Query(sort: [
         SortDescriptor(\PlannedMealPortion.dayOffset),
         SortDescriptor(\PlannedMealPortion.sortOrder),
     ]) private var mealPortions: [PlannedMealPortion]
 
-    @State private var selectedMode: WeekPlanDisplayMode
+    @Binding private var highlightedPortionIDs: Set<UUID>
+    @State private var localSelectedMode: WeekPlanDisplayMode
+    private let externalSelectedMode: Binding<WeekPlanDisplayMode>?
     @State private var showingAddMeal = false
     @State private var calendarExporter = CalendarEventExporter()
     @State private var calendarLists: [CalendarListOption] = []
@@ -40,6 +43,8 @@ struct WeekPlanView: View {
     @AppStorage(CalendarSyncDefaults.calendarNameKey) private var syncCalendarName = ""
     @AppStorage(WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) private var removeMealsAtNewWeek = false
     @AppStorage(WeekPlanAutomationDefaults.weekStartDayKey) private var weekStartDay = WeekStartDay.monday.rawValue
+    @AppStorage(WeekPlanCalendarFilterDefaults.excludedMealTypeIDsKey) private var excludedCalendarMealTypeIDsRaw = ""
+    @AppStorage(WeekPlanCalendarFilterDefaults.excludeMealsWithoutMealTypeKey) private var excludeCalendarMealsWithoutMealType = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
 
@@ -47,8 +52,24 @@ struct WeekPlanView: View {
     private let planWeekStarting = Calendar.current.startOfWeek(containing: Date())
     private let calendarWeekStarting = WeekPlanCalendar.mondayStart(containing: Date())
 
-    init(showingIngredients: Bool = false) {
-        _selectedMode = State(initialValue: showingIngredients ? .groceryList : .list)
+    init(
+        selectedMode: Binding<WeekPlanDisplayMode>? = nil,
+        highlightedPortionIDs: Binding<Set<UUID>> = .constant([]),
+        showingIngredients: Bool = false
+    ) {
+        _highlightedPortionIDs = highlightedPortionIDs
+        self.externalSelectedMode = selectedMode
+        _localSelectedMode = State(
+            initialValue: selectedMode?.wrappedValue ?? (showingIngredients ? .groceryList : .list)
+        )
+    }
+
+    private var selectedMode: WeekPlanDisplayMode {
+        externalSelectedMode?.wrappedValue ?? localSelectedMode
+    }
+
+    private var selectedModeBinding: Binding<WeekPlanDisplayMode> {
+        externalSelectedMode ?? $localSelectedMode
     }
 
     private var currentPlan: WeekPlan? {
@@ -86,6 +107,14 @@ struct WeekPlanView: View {
         currentPlanPortions.filter {
             $0.plannedMeal?.recipe != nil
         }
+    }
+
+    private var calendarViewPortions: [PlannedMealPortion] {
+        currentPlanPortions.filter(isIncludedInCalendarView)
+    }
+
+    private var excludedCalendarMealTypeIDs: Set<UUID> {
+        Self.mealTypeIDs(from: excludedCalendarMealTypeIDsRaw)
     }
 
     private var mealDaySections: [WeekPlanMealDaySection] {
@@ -272,8 +301,6 @@ struct WeekPlanView: View {
                         arrowEdge: .top
                     )
                 }
-                
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
 
                 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -384,7 +411,8 @@ struct WeekPlanView: View {
     private var calendarRow: some View {
         WeekPlanCalendarView(
             weekStarting: calendarWeekStarting,
-            portions: currentPlanPortions,
+            portions: calendarViewPortions,
+            highlightedPortionIDs: $highlightedPortionIDs,
             movePortions: movePortions
         )
         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 12, trailing: 16))
@@ -394,6 +422,7 @@ struct WeekPlanView: View {
     @ViewBuilder
     private var settingsRows: some View {
         iCalSyncSettingsSection
+        calendarViewSettingsSection
         weeklyCleanupSettingsSection
     }
 
@@ -417,7 +446,28 @@ struct WeekPlanView: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
+                .buttonStyle(.plain)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var calendarViewSettingsSection: some View {
+        Section {
+            if mealTypes.isEmpty {
+                Text("Add meal types to recipes to filter the calendar view.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(mealTypes) { mealType in
+                    Toggle(mealType.name, isOn: calendarMealTypeBinding(for: mealType))
+                }
+            }
+
+            Toggle("No meal type", isOn: calendarMealsWithoutMealTypeBinding)
+        } header: {
+            Text("Calendar View")
+        } footer: {
+            Text("Only selected meal types appear in the This Week calendar view.")
         }
     }
 
@@ -566,7 +616,7 @@ struct WeekPlanView: View {
     }
 
     private var modePicker: some View {
-        Picker("This Week View", selection: $selectedMode) {
+        Picker("This Week View", selection: selectedModeBinding) {
             ForEach(WeekPlanDisplayMode.allCases) { mode in
                 modePickerLabel(for: mode)
             }
@@ -840,6 +890,57 @@ struct WeekPlanView: View {
         )
     }
 
+    private func isIncludedInCalendarView(_ portion: PlannedMealPortion) -> Bool {
+        guard let mealTypeID = portion.plannedMeal?.recipe?.mealType?.id else {
+            return !excludeCalendarMealsWithoutMealType
+        }
+
+        return !excludedCalendarMealTypeIDs.contains(mealTypeID)
+    }
+
+    private func calendarMealTypeBinding(for mealType: MealType) -> Binding<Bool> {
+        Binding {
+            !excludedCalendarMealTypeIDs.contains(mealType.id)
+        } set: { isIncluded in
+            setCalendarMealType(mealType, isIncluded: isIncluded)
+        }
+    }
+
+    private var calendarMealsWithoutMealTypeBinding: Binding<Bool> {
+        Binding {
+            !excludeCalendarMealsWithoutMealType
+        } set: { isIncluded in
+            excludeCalendarMealsWithoutMealType = !isIncluded
+        }
+    }
+
+    private func setCalendarMealType(_ mealType: MealType, isIncluded: Bool) {
+        var excludedIDs = excludedCalendarMealTypeIDs
+
+        if isIncluded {
+            excludedIDs.remove(mealType.id)
+        } else {
+            excludedIDs.insert(mealType.id)
+        }
+
+        excludedCalendarMealTypeIDsRaw = Self.rawMealTypeIDs(from: excludedIDs)
+    }
+
+    private static func mealTypeIDs(from rawValue: String) -> Set<UUID> {
+        Set(
+            rawValue
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) }
+        )
+    }
+
+    private static func rawMealTypeIDs(from ids: Set<UUID>) -> String {
+        ids
+            .map(\.uuidString)
+            .sorted()
+            .joined(separator: ",")
+    }
+
     private func movePortions(withIDs idStrings: [String], to dayOffset: Int) {
         let ids = Set(idStrings.compactMap(UUID.init(uuidString:)))
         let portions = currentPlanPortions.filter { ids.contains($0.id) }
@@ -944,7 +1045,7 @@ struct WeekPlanView: View {
     }
 }
 
-private enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
+enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
     case list
     case calendar
     case groceryList
@@ -964,6 +1065,11 @@ private enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
             "Settings"
         }
     }
+}
+
+private enum WeekPlanCalendarFilterDefaults {
+    static let excludedMealTypeIDsKey = "calendarViewExcludedMealTypeIDs"
+    static let excludeMealsWithoutMealTypeKey = "calendarViewExcludeMealsWithoutMealType"
 }
 
 enum WeekPlanAutomationDefaults {
@@ -1159,10 +1265,14 @@ private enum WeekPlanCalendar {
 private struct WeekPlanCalendarView: View {
     let weekStarting: Date
     let portions: [PlannedMealPortion]
+    @Binding var highlightedPortionIDs: Set<UUID>
     let movePortions: ([String], Int) -> Void
 
     @State private var dayFrames: [Int: CGRect] = [:]
     @State private var portionDrag: WeekPlanPortionDrag?
+    @State private var blinkingPortionIDs: Set<UUID> = []
+    @State private var blinkDimmed = false
+    @State private var blinkTask: Task<Void, Never>?
 
     private let columns = Array(
         repeating: GridItem(.flexible(minimum: 62), spacing: 8),
@@ -1194,6 +1304,8 @@ private struct WeekPlanCalendarView: View {
                         day: day,
                         portions: portions(for: day),
                         draggingPortionID: portionDrag?.portionID,
+                        blinkingPortionIDs: blinkingPortionIDs,
+                        blinkDimmed: blinkDimmed,
                         isDropTarget: dropTargetDayOffset == day.offset,
                         onPortionDragChanged: handlePortionDragChanged,
                         onPortionDragEnded: handlePortionDragEnded
@@ -1214,6 +1326,15 @@ private struct WeekPlanCalendarView: View {
         .coordinateSpace(name: WeekPlanCalendar.coordinateSpaceName)
         .onPreferenceChange(WeekPlanDayFramePreferenceKey.self) { frames in
             dayFrames = frames
+        }
+        .onAppear {
+            startBlinkingHighlightedPortionsIfNeeded()
+        }
+        .onChange(of: highlightedPortionIDs) { _, _ in
+            startBlinkingHighlightedPortionsIfNeeded()
+        }
+        .onDisappear {
+            stopBlinking(clearRequestedHighlights: true)
         }
         .padding(.vertical, 4)
         
@@ -1238,6 +1359,7 @@ private struct WeekPlanCalendarView: View {
         _ portion: PlannedMealPortion,
         value: DragGesture.Value
     ) {
+        stopBlinking(clearRequestedHighlights: true)
         portionDrag = WeekPlanPortionDrag(portionID: portion.id, location: value.location)
     }
 
@@ -1259,6 +1381,54 @@ private struct WeekPlanCalendarView: View {
         dayFrames
             .first { _, frame in frame.contains(location) }
             .map(\.key)
+    }
+
+    private func startBlinkingHighlightedPortionsIfNeeded() {
+        let portionIDs = highlightedPortionIDs
+        guard !portionIDs.isEmpty else {
+            stopBlinking(clearRequestedHighlights: false)
+            return
+        }
+
+        blinkTask?.cancel()
+        blinkingPortionIDs = portionIDs
+        blinkDimmed = false
+
+        blinkTask = Task { @MainActor in
+            for _ in 0..<3 {
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.26)) {
+                    blinkDimmed = true
+                }
+
+                try? await Task.sleep(nanoseconds: 260_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.26)) {
+                    blinkDimmed = false
+                }
+
+                try? await Task.sleep(nanoseconds: 260_000_000)
+            }
+
+            guard !Task.isCancelled else { return }
+            blinkingPortionIDs = []
+            highlightedPortionIDs = []
+            blinkTask = nil
+        }
+    }
+
+    private func stopBlinking(clearRequestedHighlights: Bool) {
+        blinkTask?.cancel()
+        blinkTask = nil
+
+        withAnimation(.easeInOut(duration: 0.12)) {
+            blinkDimmed = false
+            blinkingPortionIDs = []
+        }
+
+        if clearRequestedHighlights {
+            highlightedPortionIDs = []
+        }
     }
 }
 
@@ -1290,6 +1460,8 @@ private struct WeekPlanDayCell: View {
     let day: WeekPlanCalendarDay
     let portions: [PlannedMealPortion]
     let draggingPortionID: UUID?
+    let blinkingPortionIDs: Set<UUID>
+    let blinkDimmed: Bool
     let isDropTarget: Bool
     let onPortionDragChanged: (PlannedMealPortion, DragGesture.Value) -> Void
     let onPortionDragEnded: (PlannedMealPortion, DragGesture.Value) -> Void
@@ -1314,7 +1486,7 @@ private struct WeekPlanDayCell: View {
                 LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 4) {
                     ForEach(portions) { portion in
                         MealPortionChipView(portion: portion)
-                            .opacity(draggingPortionID == portion.id ? 0.22 : 1)
+                            .opacity(opacity(for: portion))
                             .scaleEffect(draggingPortionID == portion.id ? 0.92 : 1)
                             .highPriorityGesture(
                                 DragGesture(
@@ -1329,6 +1501,7 @@ private struct WeekPlanDayCell: View {
                                 }
                             )
                             .animation(.snappy(duration: 0.16), value: draggingPortionID)
+                            .animation(.easeInOut(duration: 0.26), value: blinkDimmed)
                     }
                 }
 
@@ -1362,6 +1535,18 @@ private struct WeekPlanDayCell: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(day.weekdayTitle)
+    }
+
+    private func opacity(for portion: PlannedMealPortion) -> Double {
+        if draggingPortionID == portion.id {
+            return 0.22
+        }
+
+        if blinkDimmed && blinkingPortionIDs.contains(portion.id) {
+            return 0.24
+        }
+
+        return 1
     }
 }
 
