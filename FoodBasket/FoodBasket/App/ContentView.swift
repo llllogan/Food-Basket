@@ -15,6 +15,16 @@ struct ContentView: View {
     @State private var highlightedThisWeekPortionIDs: Set<UUID> = []
     @State private var selectedRecipeID: UUID?
 
+    init() {}
+
+    init(
+        selectedTab: FoodBasketTab,
+        selectedWeekPlanMode: WeekPlanDisplayMode = .list
+    ) {
+        _selectedTab = State(initialValue: selectedTab)
+        _selectedWeekPlanMode = State(initialValue: selectedWeekPlanMode)
+    }
+
     var body: some View {
         TabView(selection: $selectedTab) {
             RecipesView(
@@ -66,7 +76,7 @@ struct ContentView: View {
     }
 }
 
-private enum FoodBasketTab: Hashable {
+enum FoodBasketTab: Hashable {
     case recipes
     case weekPlan
     case ingredients
@@ -76,5 +86,26 @@ private enum FoodBasketTab: Hashable {
     let previewData = PreviewData()
 
     ContentView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Empty Recipes Tab") {
+    let previewData = EmptyPreviewData()
+
+    ContentView(selectedTab: .recipes)
+        .modelContainer(previewData.container)
+}
+
+#Preview("Empty This Week Tab") {
+    let previewData = EmptyPreviewData()
+
+    ContentView(selectedTab: .weekPlan)
+        .modelContainer(previewData.container)
+}
+
+#Preview("Empty Ingredients Tab") {
+    let previewData = EmptyPreviewData()
+
+    ContentView(selectedTab: .ingredients)
         .modelContainer(previewData.container)
 }

@@ -489,11 +489,31 @@ struct WeekPlanView: View {
     @ViewBuilder
     private var mealRows: some View {
         if plannedMeals.isEmpty {
-            Text("Add recipes you want to cook this week.")
-                .foregroundStyle(.secondary)
+            ContentUnavailableView {
+                Label("No Meals Planned", systemImage: "calendar")
+            } description: {
+                Text("Add recipes you want to cook this week, then assign their portions to days.")
+            } actions: {
+                Button("Add Meal") {
+                    showingAddMeal = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .listRowSeparator(.hidden)
+            .listRowInsets(emptyStateInsets)
         } else if mealDaySections.isEmpty {
-            Text("Assign meal portions to days to build this list.")
-                .foregroundStyle(.secondary)
+            ContentUnavailableView {
+                Label("No Meals Scheduled", systemImage: "calendar")
+            } description: {
+                Text("Assign meal portions to days in the calendar to build this list.")
+            } actions: {
+                Button("Open Calendar") {
+                    selectedModeBinding.wrappedValue = .calendar
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .listRowSeparator(.hidden)
+            .listRowInsets(emptyStateInsets)
         }
 
         ForEach(mealDaySections) { section in
@@ -594,8 +614,18 @@ struct WeekPlanView: View {
     @ViewBuilder
     private var groceryRows: some View {
         if shoppingListLines.isEmpty {
-            Text("Add meals to this week to build your shopping list.")
-                .foregroundStyle(.secondary)
+            ContentUnavailableView {
+                Label("No Grocery List Yet", systemImage: "cart")
+            } description: {
+                Text("Add meals to this week and Food Basket will collect the ingredients here.")
+            } actions: {
+                Button("Add Meal") {
+                    showingAddMeal = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .listRowSeparator(.hidden)
+            .listRowInsets(emptyStateInsets)
         }
 
         ForEach(shoppingListCategories, id: \.self) { category in
@@ -613,6 +643,10 @@ struct WeekPlanView: View {
                 }
             }
         }
+    }
+
+    private var emptyStateInsets: EdgeInsets {
+        EdgeInsets(top: 56, leading: 20, bottom: 56, trailing: 20)
     }
 
     private var modePicker: some View {
@@ -1611,5 +1645,19 @@ private extension Recipe {
     let previewData = PreviewData()
 
     WeekPlanView(showingIngredients: true)
+        .modelContainer(previewData.container)
+}
+
+#Preview("This Week Empty List") {
+    let previewData = EmptyPreviewData()
+
+    WeekPlanView(selectedMode: .constant(.list))
+        .modelContainer(previewData.container)
+}
+
+#Preview("This Week Empty Grocery List") {
+    let previewData = EmptyPreviewData()
+
+    WeekPlanView(selectedMode: .constant(.groceryList))
         .modelContainer(previewData.container)
 }

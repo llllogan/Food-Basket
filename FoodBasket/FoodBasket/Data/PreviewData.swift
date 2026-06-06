@@ -14,15 +14,7 @@ struct PreviewData {
     let ingredient: Ingredient
 
     init() {
-        let schema = FoodBasketDataSchema.current
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-
-        do {
-            container = try ModelContainer(for: schema, configurations: [configuration])
-        } catch {
-            fatalError("Could not create preview ModelContainer: \(error)")
-        }
-
+        container = PreviewModelContainer.make()
         let modelContext = container.mainContext
 
         let produce = IngredientCategory(name: "Produce")
@@ -157,6 +149,23 @@ struct PreviewData {
                     plannedMeal: meal
                 )
             )
+        }
+    }
+}
+
+struct EmptyPreviewData {
+    let container = PreviewModelContainer.make()
+}
+
+private enum PreviewModelContainer {
+    static func make() -> ModelContainer {
+        let schema = FoodBasketDataSchema.current
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+
+        do {
+            return try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            fatalError("Could not create preview ModelContainer: \(error)")
         }
     }
 }

@@ -27,11 +27,36 @@ struct IngredientsView: View {
         NavigationStack {
             List {
                 if ingredients.isEmpty {
-                    Text("Add ingredients as you create recipes.")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView {
+                        Label("No Ingredients Yet", systemImage: "carrot")
+                    } description: {
+                        Text("Add ingredients directly, or they will appear here as you create recipes.")
+                    } actions: {
+                        Button("Add Ingredient") {
+                            showingAddIngredient = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(emptyStateInsets)
                 } else if filteredIngredients.isEmpty {
-                    Text("No ingredients found.")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView {
+                        Label("No Ingredients Found", systemImage: "magnifyingglass")
+                    } description: {
+                        Text("Try another search, show all ingredients, or add a new ingredient.")
+                    } actions: {
+                        Button("Add Ingredient") {
+                            showingAddIngredient = true
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button("Show All Ingredients") {
+                            searchText = ""
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(emptyStateInsets)
                 }
 
                 ForEach(filteredIngredients) { ingredient in
@@ -77,6 +102,10 @@ struct IngredientsView: View {
         }
     }
 
+    private var emptyStateInsets: EdgeInsets {
+        EdgeInsets(top: 56, leading: 20, bottom: 56, trailing: 20)
+    }
+
     private func deleteIngredients(at offsets: IndexSet) {
         let deletedIngredients = offsets.map { filteredIngredients[$0] }
 
@@ -101,6 +130,13 @@ private extension Ingredient {
 
 #Preview("Ingredients") {
     let previewData = PreviewData()
+
+    IngredientsView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Ingredients Empty") {
+    let previewData = EmptyPreviewData()
 
     IngredientsView()
         .modelContainer(previewData.container)

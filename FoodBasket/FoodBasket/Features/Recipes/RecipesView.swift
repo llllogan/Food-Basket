@@ -79,11 +79,37 @@ struct RecipesView: View {
         NavigationStack(path: $navigationPath) {
             List {
                 if recipes.isEmpty {
-                    Text("Add a recipe to get started.")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView {
+                        Label("No Recipes Yet", systemImage: "book.closed")
+                    } description: {
+                        Text("Add recipes manually or import one from a URL to start planning meals.")
+                    } actions: {
+                        Button("Add Recipe") {
+                            showingAddRecipe = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(emptyStateInsets)
                 } else if filteredRecipes.isEmpty {
-                    Text("No recipes found.")
-                        .foregroundStyle(.secondary)
+                    ContentUnavailableView {
+                        Label("No Recipes Found", systemImage: "magnifyingglass")
+                    } description: {
+                        Text("Try another search, clear the current filters, or add a new recipe.")
+                    } actions: {
+                        Button("Add Recipe") {
+                            showingAddRecipe = true
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button("Show All Recipes") {
+                            searchText = ""
+                            selectedMealTypeFilterID = nil
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(emptyStateInsets)
                 }
 
                 ForEach(filteredRecipes) { recipe in
@@ -185,6 +211,10 @@ struct RecipesView: View {
         }
     }
 
+    private var emptyStateInsets: EdgeInsets {
+        EdgeInsets(top: 56, leading: 20, bottom: 56, trailing: 20)
+    }
+
     @ViewBuilder
     private func mealTypeFilterMenuLabel(_ title: String, isSelected: Bool) -> some View {
         if isSelected {
@@ -224,7 +254,7 @@ struct RecipesView: View {
                     sortMode = .name
                 } label: {
                     sortMenuLabel(
-                        "Sort by Name",
+                        "by Name",
                         isSelected: sortMode == .name
                     )
                 }
@@ -233,7 +263,7 @@ struct RecipesView: View {
                     sortMode = .rating
                 } label: {
                     sortMenuLabel(
-                        "Sort by Star Rating",
+                        "by Rating",
                         isSelected: sortMode == .rating
                     )
                 }
@@ -412,6 +442,13 @@ private extension Recipe {
 
 #Preview("Recipes") {
     let previewData = PreviewData()
+
+    RecipesView()
+        .modelContainer(previewData.container)
+}
+
+#Preview("Recipes Empty") {
+    let previewData = EmptyPreviewData()
 
     RecipesView()
         .modelContainer(previewData.container)
