@@ -11,6 +11,7 @@ import UIKit
 
 struct RecipeDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
     let recipe: Recipe
     @State private var showingAddIngredient = false
     @State private var showingEditRecipe = false
@@ -46,12 +47,12 @@ struct RecipeDetailView: View {
         )
     }
 
-    private var reminderButtonTitle: String {
-        rememberedReminderList == nil ? "Add to ..." : "Add to Grocery List"
-    }
-
     private var reminderSourceIdentifier: String {
         "recipe:\(recipe.id.uuidString)"
+    }
+
+    private var planWeekStarting: Date {
+        Calendar.current.startOfWeek(containing: Date())
     }
 
     private var clampedRecipeRating: Int {
@@ -202,7 +203,7 @@ struct RecipeDetailView: View {
         } label: {
             groceryListButtonLabel
         } primaryAction: {
-            addToRememberedReminderListOrChoose()
+            addToThisWeek()
         }
         .buttonStyle(.bordered)
         .simultaneousGesture(
@@ -211,27 +212,32 @@ struct RecipeDetailView: View {
                     playGroceryMenuHaptic()
                 }
         )
-        .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
     }
 
-    @ViewBuilder
     private var groceryListButtonLabel: some View {
-        if isUpdatingReminders {
-            ProgressView()
-                .controlSize(.small)
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity)
-        } else {
-            Text(reminderButtonTitle)
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity)
-                .foregroundColor(Color(uiColor: .label))
+        HStack(spacing: 8) {
+            Image(systemName: "refrigerator")
+                .font(.subheadline)
+            Text("Have this week")
         }
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+            .foregroundColor(Color(uiColor: .label))
     }
 
     @ViewBuilder
     private var reminderContextMenu: some View {
+        Button {
+            prepareReminderListSelection()
+        } label: {
+            Label("Add to Reminders List", systemImage: "list.bullet")
+        }
+        .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+
         if let rememberedReminderList {
+            
+            Divider()
+            
             Button {
                 addReminders(to: rememberedReminderList)
             } label: {
@@ -239,27 +245,53 @@ struct RecipeDetailView: View {
             }
             .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
 
-            Button {
-                prepareReminderListSelection()
-            } label: {
-                Label("Add to Reminders", systemImage: "list.bullet")
-            }
-            .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
-
             Button(role: .destructive) {
                 clearReminders(from: rememberedReminderList)
             } label: {
-                Label("Remove from \(rememberedReminderList.title)", systemImage: "trash")
+                Label("Remove Ingredients from \(rememberedReminderList.title)", systemImage: "trash")
             }
             .disabled(isUpdatingReminders)
-        } else {
-            Button {
-                prepareReminderListSelection()
-            } label: {
-                Label("Add to Reminders", systemImage: "list.bullet")
-            }
-            .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
         }
+        
+        Divider()
+        
+        Button {
+            addToThisWeek()
+        } label: {
+            Label("Add to This Week", systemImage: "refrigerator")
+        }
+        .disabled(isUpdatingReminders)
+    }
+
+    private func addToThisWeek() {
+        let plan = SeedData.weekPlan(
+            starting: planWeekStarting,
+            existing: plans,
+            in: modelContext
+        )
+        let meal = PlannedMeal(
+            quantityMultiplier: 1,
+            sortOrder: plan.plannedMeals?.count ?? 0,
+            weekPlan: plan,
+            recipe: recipe
+        )
+        plan.plannedMeals = (plan.plannedMeals ?? []) + [meal]
+        modelContext.insert(meal)
+
+        let firstSortOrder = nextMondayPortionSortOrder(for: plan)
+        for index in 0..<PlannedMealPortion.portionCount(for: meal) {
+            modelContext.insert(
+                PlannedMealPortion(
+                    dayOffset: 0,
+                    sortOrder: firstSortOrder + index,
+                    weekPlan: plan,
+                    plannedMeal: meal
+                )
+            )
+        }
+
+        try? modelContext.save()
+        playAddToWeekHaptic()
     }
 
     private var ratingPicker: some View {
@@ -371,15 +403,6 @@ struct RecipeDetailView: View {
         try? modelContext.save()
     }
 
-    private func addToRememberedReminderListOrChoose() {
-        guard let rememberedReminderList else {
-            prepareReminderListSelection()
-            return
-        }
-
-        addReminders(to: rememberedReminderList)
-    }
-
     private func prepareReminderListSelection() {
         isUpdatingReminders = true
 
@@ -461,6 +484,16 @@ struct RecipeDetailView: View {
         lastRemindersListName = ""
     }
 
+    private func nextMondayPortionSortOrder(for plan: WeekPlan) -> Int {
+        let portions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
+        let maxSortOrder = portions
+            .filter { $0.weekPlan?.id == plan.id && $0.dayOffset == 0 }
+            .map(\.sortOrder)
+            .max()
+
+        return (maxSortOrder ?? -1) + 1
+    }
+
     private func showRemindersError(_ error: Error, for list: ReminderListOption? = nil) {
         if let list,
            let remindersError = error as? RemindersExportError,
@@ -516,6 +549,10 @@ struct RecipeDetailView: View {
 
     private func playGroceryMenuHaptic() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private func playAddToWeekHaptic() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func playRatingSelectionHaptic() {
