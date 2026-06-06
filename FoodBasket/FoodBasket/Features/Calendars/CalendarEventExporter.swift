@@ -19,19 +19,23 @@ final class CalendarEventExporter {
 
         return eventStore.calendars(for: .event)
             .filter(\.allowsContentModifications)
-            .map {
-                CalendarListOption(
-                    id: $0.calendarIdentifier,
-                    title: $0.title,
-                    sourceTitle: $0.source.title
-                )
-            }
+            .map(Self.option(for:))
             .sorted {
                 if $0.sourceTitle == $1.sourceTitle {
                     return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
                 }
                 return $0.sourceTitle.localizedCaseInsensitiveCompare($1.sourceTitle) == .orderedAscending
             }
+    }
+
+    func resolvedWritableCalendar(matching calendarOption: CalendarListOption) async throws -> CalendarListOption {
+        try await requestAccessIfNeeded()
+
+        guard let calendar = writableCalendar(matching: calendarOption) else {
+            throw CalendarExportError.calendarUnavailable
+        }
+
+        return Self.option(for: calendar)
     }
 
     func export(
@@ -42,8 +46,7 @@ final class CalendarEventExporter {
     ) async throws -> Int {
         try await requestAccessIfNeeded()
 
-        guard let calendar = eventStore.calendar(withIdentifier: calendarOption.id),
-              calendar.allowsContentModifications else {
+        guard let calendar = writableCalendar(matching: calendarOption) else {
             throw CalendarExportError.calendarUnavailable
         }
 
@@ -58,8 +61,7 @@ final class CalendarEventExporter {
     func clearAutomaticallyAddedEvents(from calendarOption: CalendarListOption) async throws -> Int {
         try await requestAccessIfNeeded()
 
-        guard let calendar = eventStore.calendar(withIdentifier: calendarOption.id),
-              calendar.allowsContentModifications else {
+        guard let calendar = writableCalendar(matching: calendarOption) else {
             throw CalendarExportError.calendarUnavailable
         }
 
@@ -74,8 +76,7 @@ final class CalendarEventExporter {
     ) async throws -> Int {
         try await requestAccessIfNeeded()
 
-        guard let calendar = eventStore.calendar(withIdentifier: calendarOption.id),
-              calendar.allowsContentModifications else {
+        guard let calendar = writableCalendar(matching: calendarOption) else {
             throw CalendarExportError.calendarUnavailable
         }
 
@@ -85,6 +86,38 @@ final class CalendarEventExporter {
             weekStarting: weekStarting,
             dayCount: dayCount,
             to: calendar
+        )
+    }
+
+    private func writableCalendar(matching calendarOption: CalendarListOption) -> EKCalendar? {
+        if let calendar = eventStore.calendar(withIdentifier: calendarOption.id),
+           calendar.allowsContentModifications {
+            return calendar
+        }
+
+        let writableCalendars = eventStore.calendars(for: .event)
+            .filter(\.allowsContentModifications)
+
+        if !calendarOption.sourceTitle.isEmpty,
+           let calendar = writableCalendars.first(where: {
+               $0.title == calendarOption.title &&
+               $0.source.title == calendarOption.sourceTitle
+           }) {
+            return calendar
+        }
+
+        let matchingTitleCalendars = writableCalendars.filter {
+            $0.title == calendarOption.title
+        }
+
+        return matchingTitleCalendars.count == 1 ? matchingTitleCalendars[0] : nil
+    }
+
+    private static func option(for calendar: EKCalendar) -> CalendarListOption {
+        CalendarListOption(
+            id: calendar.calendarIdentifier,
+            title: calendar.title,
+            sourceTitle: calendar.source.title
         )
     }
 

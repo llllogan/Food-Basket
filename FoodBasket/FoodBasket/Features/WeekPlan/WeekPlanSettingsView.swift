@@ -20,9 +20,11 @@ struct WeekPlanSettingsView: View {
 
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
+    @AppStorage(CalendarListDefaults.sourceTitleKey) private var lastCalendarSourceTitle = ""
     @AppStorage(CalendarSyncDefaults.isEnabledKey) private var syncToICal = false
     @AppStorage(CalendarSyncDefaults.calendarIDKey) private var syncCalendarID = ""
     @AppStorage(CalendarSyncDefaults.calendarNameKey) private var syncCalendarName = ""
+    @AppStorage(CalendarSyncDefaults.calendarSourceTitleKey) private var syncCalendarSourceTitle = ""
     @AppStorage(WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) private var removeMealsAtNewWeek = false
     @AppStorage(WeekPlanAutomationDefaults.weekStartDayKey) private var weekStartDay = WeekStartDay.monday.rawValue
     @AppStorage(WeekPlanCalendarFilterDefaults.excludedMealTypeIDsKey) private var excludedCalendarMealTypeIDsRaw = ""
@@ -42,7 +44,7 @@ struct WeekPlanSettingsView: View {
         return CalendarListOption(
             id: syncCalendarID,
             title: syncCalendarName,
-            sourceTitle: ""
+            sourceTitle: syncCalendarSourceTitle
         )
     }
 
@@ -50,6 +52,7 @@ struct WeekPlanSettingsView: View {
         [
             syncToICal ? "sync-on" : "sync-off",
             syncCalendarID,
+            syncCalendarSourceTitle,
             removeMealsAtNewWeek ? "cleanup-on" : "cleanup-off",
             "\(weekStartDay)",
         ].joined(separator: "#")
@@ -233,22 +236,18 @@ struct WeekPlanSettingsView: View {
     private func rememberSyncCalendar(_ calendar: CalendarListOption) {
         syncCalendarID = calendar.id
         syncCalendarName = calendar.title
+        syncCalendarSourceTitle = calendar.sourceTitle
     }
 
     private func clearDefaultCalendar() {
         lastCalendarID = ""
         lastCalendarName = ""
+        lastCalendarSourceTitle = ""
     }
 
     private func clearDefaultRemindersList() {
         lastRemindersListID = ""
         lastRemindersListName = ""
-    }
-
-    private func forgetSyncCalendar(ifMatching calendar: CalendarListOption) {
-        guard calendar.id == syncCalendarID else { return }
-        syncCalendarID = ""
-        syncCalendarName = ""
     }
 
     private func showCalendarError(_ error: Error) {
@@ -272,11 +271,7 @@ struct WeekPlanSettingsView: View {
                 to: selectedSyncCalendar
             )
         } catch {
-            if let selectedSyncCalendar,
-               let calendarError = error as? CalendarExportError,
-               calendarError == .calendarUnavailable {
-                forgetSyncCalendar(ifMatching: selectedSyncCalendar)
-            }
+            return
         }
     }
 

@@ -36,9 +36,11 @@ struct WeekPlanView: View {
     private let forceReminderExportTipRow: Bool
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
+    @AppStorage(CalendarListDefaults.sourceTitleKey) private var lastCalendarSourceTitle = ""
     @AppStorage(CalendarSyncDefaults.isEnabledKey) private var syncToICal = false
     @AppStorage(CalendarSyncDefaults.calendarIDKey) private var syncCalendarID = ""
     @AppStorage(CalendarSyncDefaults.calendarNameKey) private var syncCalendarName = ""
+    @AppStorage(CalendarSyncDefaults.calendarSourceTitleKey) private var syncCalendarSourceTitle = ""
     @AppStorage(WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) private var removeMealsAtNewWeek = false
     @AppStorage(WeekPlanAutomationDefaults.weekStartDayKey) private var weekStartDay = WeekStartDay.monday.rawValue
     @AppStorage(WeekPlanCalendarFilterDefaults.excludedMealTypeIDsKey) private var excludedCalendarMealTypeIDsRaw = ""
@@ -169,7 +171,7 @@ struct WeekPlanView: View {
         return CalendarListOption(
             id: lastCalendarID,
             title: lastCalendarName,
-            sourceTitle: ""
+            sourceTitle: lastCalendarSourceTitle
         )
     }
 
@@ -181,7 +183,7 @@ struct WeekPlanView: View {
         return CalendarListOption(
             id: syncCalendarID,
             title: syncCalendarName,
-            sourceTitle: ""
+            sourceTitle: syncCalendarSourceTitle
         )
     }
 
@@ -189,6 +191,7 @@ struct WeekPlanView: View {
         [
             syncToICal ? "sync-on" : "sync-off",
             syncCalendarID,
+            syncCalendarSourceTitle,
             removeMealsAtNewWeek ? "cleanup-on" : "cleanup-off",
             "\(weekStartDay)",
             currentPlanPortions
@@ -780,6 +783,7 @@ struct WeekPlanView: View {
     private func remember(_ calendar: CalendarListOption) {
         lastCalendarID = calendar.id
         lastCalendarName = calendar.title
+        lastCalendarSourceTitle = calendar.sourceTitle
     }
 
     private func remember(_ list: ReminderListOption) {
@@ -790,6 +794,7 @@ struct WeekPlanView: View {
     private func clearDefaultCalendar() {
         lastCalendarID = ""
         lastCalendarName = ""
+        lastCalendarSourceTitle = ""
     }
 
     private func clearDefaultRemindersList() {
@@ -800,12 +805,6 @@ struct WeekPlanView: View {
     private func forgetRememberedCalendar(ifMatching calendar: CalendarListOption) {
         guard calendar.id == lastCalendarID else { return }
         clearDefaultCalendar()
-    }
-
-    private func forgetSyncCalendar(ifMatching calendar: CalendarListOption) {
-        guard calendar.id == syncCalendarID else { return }
-        syncCalendarID = ""
-        syncCalendarName = ""
     }
 
     private func forgetRememberedList(ifMatching list: ReminderListOption) {
@@ -840,11 +839,7 @@ struct WeekPlanView: View {
                 to: selectedSyncCalendar
             )
         } catch {
-            if let selectedSyncCalendar,
-               let calendarError = error as? CalendarExportError,
-               calendarError == .calendarUnavailable {
-                forgetSyncCalendar(ifMatching: selectedSyncCalendar)
-            }
+            return
         }
     }
 
@@ -1129,12 +1124,7 @@ enum WeekPlanAutomation {
                 in: modelContext,
                 to: selectedCalendar
             )
-        } catch {
-            if let calendarError = error as? CalendarExportError,
-               calendarError == .calendarUnavailable {
-                CalendarSyncDefaults.forgetSelectedCalendar()
-            }
-        }
+        } catch {}
     }
 
     static func removeMealsAtStartOfNewWeekIfNeeded(in modelContext: ModelContext) throws -> Int {
@@ -1164,11 +1154,15 @@ enum WeekPlanAutomation {
             currentPlanPortions(for: $0, in: modelContext)
         } ?? []
 
-        return try await CalendarEventExporter().replaceAutomaticallyAddedEvents(
+        let calendarExporter = CalendarEventExporter()
+        let resolvedCalendar = try await calendarExporter.resolvedWritableCalendar(matching: calendar)
+        CalendarSyncDefaults.remember(resolvedCalendar)
+
+        return try await calendarExporter.replaceAutomaticallyAddedEvents(
             portions,
             weekStarting: WeekPlanCalendar.mondayStart(containing: Date()),
             dayCount: WeekPlanCalendar.dayCount,
-            to: calendar
+            to: resolvedCalendar
         )
     }
 
