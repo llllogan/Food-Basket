@@ -177,10 +177,7 @@ struct WeekPlanView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                selectedRows
-            }
-            .listStyle(.plain)
+            contentList
             .navigationTitle("This Week")
             .safeAreaInset(edge: .top) {
                 modePicker
@@ -263,7 +260,7 @@ struct WeekPlanView: View {
                         if isUpdatingReminders {
                             ProgressView()
                         } else {
-                            Label("Update Reminders", systemImage: "checklist")
+                            Label("Update Reminders", systemImage: "square.and.arrow.up")
                         }
                     }
                     .disabled(
@@ -347,16 +344,32 @@ struct WeekPlanView: View {
     }
 
     @ViewBuilder
+    private var contentList: some View {
+        switch selectedMode {
+        case .settings:
+            List {
+                settingsRows
+            }
+            .listStyle(.insetGrouped)
+        default:
+            List {
+                selectedRows
+            }
+            .listStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
     private var selectedRows: some View {
         switch selectedMode {
         case .calendar:
             calendarRow
-            calendarSyncSettingsRows
-            weeklyResetSettingsRows
         case .list:
             mealRows
         case .groceryList:
             groceryRows
+        case .settings:
+            settingsRows
         }
     }
 
@@ -371,8 +384,14 @@ struct WeekPlanView: View {
     }
 
     @ViewBuilder
-    private var calendarSyncSettingsRows: some View {
-        Section {
+    private var settingsRows: some View {
+        iCalSyncSettingsSection
+        weeklyCleanupSettingsSection
+    }
+
+    @ViewBuilder
+    private var iCalSyncSettingsSection: some View {
+        Section("iCal Sync") {
             Toggle("Sync to iCal", isOn: $syncToICal)
 
             if syncToICal {
@@ -395,8 +414,8 @@ struct WeekPlanView: View {
     }
 
     @ViewBuilder
-    private var weeklyResetSettingsRows: some View {
-        Section {
+    private var weeklyCleanupSettingsSection: some View {
+        Section("Weekly Cleanup") {
             Toggle("Remove meals at the start of a new week", isOn: $removeMealsAtNewWeek)
 
             if removeMealsAtNewWeek {
@@ -541,7 +560,7 @@ struct WeekPlanView: View {
     private var modePicker: some View {
         Picker("This Week View", selection: $selectedMode) {
             ForEach(WeekPlanDisplayMode.allCases) { mode in
-                Text(mode.title).tag(mode)
+                modePickerLabel(for: mode)
             }
         }
         .pickerStyle(.segmented)
@@ -549,6 +568,19 @@ struct WeekPlanView: View {
         .background {
             Capsule()
                 .fill(.ultraThinMaterial.opacity(0.9))
+        }
+    }
+
+    @ViewBuilder
+    private func modePickerLabel(for mode: WeekPlanDisplayMode) -> some View {
+        switch mode {
+        case .settings:
+            Image(systemName: "gearshape")
+                .accessibilityLabel(Text(mode.title))
+                .tag(mode)
+        default:
+            Text(mode.title)
+                .tag(mode)
         }
     }
 
@@ -905,20 +937,23 @@ struct WeekPlanView: View {
 }
 
 private enum WeekPlanDisplayMode: String, CaseIterable, Identifiable {
-    case calendar
     case list
+    case calendar
     case groceryList
+    case settings
 
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .calendar:
-            "Calendar"
         case .list:
             "Meals"
+        case .calendar:
+            "Calendar"
         case .groceryList:
             "Grocery List"
+        case .settings:
+            "Settings"
         }
     }
 }
