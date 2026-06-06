@@ -276,6 +276,7 @@ struct RecipeDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(recipe.name)
                 .font(.largeTitle.bold())
+                .fontDesign(.rounded)
 
             HStack(spacing: 8) {
                 Image(systemName: "clock")

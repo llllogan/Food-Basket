@@ -51,6 +51,7 @@ struct ContentView: View {
                 }
                 .tag(FoodBasketTab.ingredients)
         }
+        .fontDesign(.rounded)
         .dismissKeyboardOnTapOutsideTextInputs()
         .onOpenURL(perform: openDeepLink)
         .task {

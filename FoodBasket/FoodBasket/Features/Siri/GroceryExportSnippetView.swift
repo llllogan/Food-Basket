@@ -54,6 +54,7 @@ struct GroceryExportSnippetView: View {
                 }
             }
         }
+        .fontDesign(.rounded)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
     }

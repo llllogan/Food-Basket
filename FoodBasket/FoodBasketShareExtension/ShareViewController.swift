@@ -183,6 +183,7 @@ private struct ShareRecipeImportView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
+        .fontDesign(.rounded)
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
