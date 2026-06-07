@@ -30,6 +30,8 @@ struct RecipeDetailView: View {
     @State private var isScrubbingRating = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
+    @AppStorage(WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) private var removeMealsAtNewWeek = false
+    @AppStorage(WeekPlanAutomationDefaults.weekStartDayKey) private var weekStartDay = WeekStartDay.monday.rawValue
 
     init(
         recipe: Recipe,
@@ -63,8 +65,15 @@ struct RecipeDetailView: View {
         "recipe:\(recipe.id.uuidString)"
     }
 
+    private var foodBasketWeekStartDay: WeekStartDay {
+        WeekStartDay.foodBasketCalendarStartDay(
+            removeMealsAtNewWeek: removeMealsAtNewWeek,
+            rawValue: weekStartDay
+        )
+    }
+
     private var planWeekStarting: Date {
-        Calendar.current.startOfWeek(containing: Date())
+        foodBasketWeekStartDay.startOfWeek(containing: Date())
     }
 
     private var currentWeekPlan: WeekPlan? {
