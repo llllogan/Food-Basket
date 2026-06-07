@@ -50,8 +50,20 @@ struct WeekPlanView: View {
     @AppStorage(WeekPlanGroceryListTipDefaults.isReminderExportTipCompleteKey) private var isReminderExportTipComplete = false
     @AppStorage(WeekPlanGroceryListTipDefaults.reminderExportTipVisibleSecondsKey) private var reminderExportTipVisibleSeconds = 0.0
 
-    private let planWeekStarting = Calendar.current.startOfWeek(containing: Date())
-    private let calendarWeekStarting = WeekPlanCalendar.mondayStart(containing: Date())
+    private var foodBasketWeekStartDay: WeekStartDay {
+        WeekStartDay.foodBasketCalendarStartDay(
+            removeMealsAtNewWeek: removeMealsAtNewWeek,
+            rawValue: weekStartDay
+        )
+    }
+
+    private var planWeekStarting: Date {
+        foodBasketWeekStartDay.startOfWeek(containing: Date())
+    }
+
+    private var calendarWeekStarting: Date {
+        planWeekStarting
+    }
 
     init(
         selectedMode: Binding<WeekPlanDisplayMode>? = nil,
@@ -703,7 +715,10 @@ struct WeekPlanView: View {
 
             do {
                 let removedCount = try await calendarExporter
-                    .clearAutomaticallyAddedEvents(from: calendar)
+                    .clearAutomaticallyAddedEvents(
+                        from: calendar,
+                        weekStarting: calendarWeekStarting
+                    )
                 exportAlert = ReminderExportAlert(
                     title: "Calendar Events Cleared",
                     message: "\(removedCount) automatically added events were removed from \(calendar.title)."
@@ -948,7 +963,7 @@ struct WeekPlanView: View {
             portion.weekPlan?.id == plan.id ||
             portion.plannedMeal?.weekPlan?.id == plan.id
         }
-        var nextMondaySortOrder = (
+        var nextFirstDaySortOrder = (
             planPortions
                 .filter { $0.dayOffset == 0 }
                 .map(\.sortOrder)
@@ -993,7 +1008,7 @@ struct WeekPlanView: View {
                     modelContext.insert(
                         PlannedMealPortion(
                             dayOffset: 0,
-                            sortOrder: nextMondaySortOrder + index,
+                            sortOrder: nextFirstDaySortOrder + index,
                             weekPlan: plan,
                             plannedMeal: meal
                         )
@@ -1001,7 +1016,7 @@ struct WeekPlanView: View {
                     didChange = true
                 }
 
-                nextMondaySortOrder += missingCount
+                nextFirstDaySortOrder += missingCount
             } else if existingPortions.count > expectedCount {
                 for portion in existingPortions.suffix(existingPortions.count - expectedCount) {
                     modelContext.delete(portion)
@@ -1107,6 +1122,24 @@ enum WeekStartDay: Int, CaseIterable, Identifiable {
             to: startOfDay
         ) ?? startOfDay
     }
+
+    static func foodBasketCalendarStartDay(
+        removeMealsAtNewWeek: Bool,
+        rawValue: Int
+    ) -> WeekStartDay {
+        guard removeMealsAtNewWeek else { return .monday }
+
+        return WeekStartDay(rawValue: rawValue) ?? .monday
+    }
+
+    static func foodBasketCalendarStartDay(
+        from defaults: UserDefaults = .standard
+    ) -> WeekStartDay {
+        foodBasketCalendarStartDay(
+            removeMealsAtNewWeek: defaults.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey),
+            rawValue: defaults.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
+        )
+    }
 }
 
 @MainActor
@@ -1133,9 +1166,10 @@ enum WeekPlanAutomation {
             return 0
         }
 
-        let weekStartDay = WeekStartDay(
+        let weekStartDay = WeekStartDay.foodBasketCalendarStartDay(
+            removeMealsAtNewWeek: true,
             rawValue: defaults.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
-        ) ?? .monday
+        )
         let currentWeekStart = weekStartDay.startOfWeek(containing: Date())
 
         return try removeMealsAddedBefore(currentWeekStart, in: modelContext)
@@ -1146,7 +1180,8 @@ enum WeekPlanAutomation {
         to calendar: CalendarListOption
     ) async throws -> Int {
         let plans = (try? modelContext.fetch(FetchDescriptor<WeekPlan>())) ?? []
-        let planWeekStarting = Calendar.current.startOfWeek(containing: Date())
+        let planWeekStarting = WeekStartDay.foodBasketCalendarStartDay()
+            .startOfWeek(containing: Date())
         let currentPlan = plans.first {
             Calendar.current.isDate($0.weekStarting, inSameDayAs: planWeekStarting)
         }
@@ -1160,7 +1195,7 @@ enum WeekPlanAutomation {
 
         return try await calendarExporter.replaceAutomaticallyAddedEvents(
             portions,
-            weekStarting: WeekPlanCalendar.mondayStart(containing: Date()),
+            weekStarting: planWeekStarting,
             dayCount: WeekPlanCalendar.dayCount,
             to: resolvedCalendar
         )
@@ -1241,13 +1276,6 @@ private struct WeekPlanMealDayRow: Identifiable {
 private enum WeekPlanCalendar {
     static let dayCount = 8
     static let coordinateSpaceName = "WeekPlanCalendarCoordinateSpace"
-
-    static func mondayStart(containing date: Date, calendar: Calendar = .current) -> Date {
-        let startOfDay = calendar.startOfDay(for: date)
-        let weekday = calendar.component(.weekday, from: startOfDay)
-        let daysSinceMonday = (weekday + 5) % 7
-        return calendar.date(byAdding: .day, value: -daysSinceMonday, to: startOfDay) ?? startOfDay
-    }
 }
 
 private struct WeekPlanCalendarView: View {

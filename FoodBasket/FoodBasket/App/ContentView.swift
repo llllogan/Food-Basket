@@ -51,7 +51,9 @@ struct ContentView: View {
                 }
                 .tag(FoodBasketTab.ingredients)
 
-            WeekPlanSettingsView()
+            WeekPlanSettingsView(
+                onOpenThisWeekCalendar: openThisWeekCalendar
+            )
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -80,6 +82,10 @@ struct ContentView: View {
         highlightedThisWeekPortionIDs = highlightedPortionIDs
         selectedWeekPlanMode = .calendar
         selectedTab = .weekPlan
+    }
+
+    private func openThisWeekCalendar() {
+        openThisWeekCalendar(highlightedPortionIDs: [])
     }
 }
 

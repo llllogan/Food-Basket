@@ -11,6 +11,7 @@ import SwiftUI
 struct WeekPlanSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \MealType.name) private var mealTypes: [MealType]
+    private let onOpenThisWeekCalendar: () -> Void
 
     @State private var calendarExporter = CalendarEventExporter()
     @State private var syncCalendarLists: [CalendarListOption] = []
@@ -31,6 +32,10 @@ struct WeekPlanSettingsView: View {
     @AppStorage(WeekPlanCalendarFilterDefaults.excludeMealsWithoutMealTypeKey) private var excludeCalendarMealsWithoutMealType = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
+
+    init(onOpenThisWeekCalendar: @escaping () -> Void = {}) {
+        self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
+    }
 
     private var excludedCalendarMealTypeIDs: Set<UUID> {
         WeekPlanCalendarFilterDefaults.mealTypeIDs(from: excludedCalendarMealTypeIDsRaw)
@@ -146,7 +151,16 @@ struct WeekPlanSettingsView: View {
 
             Toggle("No meal type", isOn: calendarMealsWithoutMealTypeBinding)
         } header: {
-            Text("Calendar View")
+            HStack {
+                Text("Calendar View")
+                Spacer()
+                Button(action: onOpenThisWeekCalendar, label: {
+                    Text("View")
+                        .font(.subheadline.bold())
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                })
+            }
         } footer: {
             Text("Only selected meal types appear in the This Week calendar view.")
         }

@@ -58,14 +58,20 @@ final class CalendarEventExporter {
         )
     }
 
-    func clearAutomaticallyAddedEvents(from calendarOption: CalendarListOption) async throws -> Int {
+    func clearAutomaticallyAddedEvents(
+        from calendarOption: CalendarListOption,
+        weekStarting: Date
+    ) async throws -> Int {
         try await requestAccessIfNeeded()
 
         guard let calendar = writableCalendar(matching: calendarOption) else {
             throw CalendarExportError.calendarUnavailable
         }
 
-        return try clearAutomaticallyAddedEvents(from: calendar)
+        return try clearAutomaticallyAddedEvents(
+            from: calendar,
+            weekStarting: weekStarting
+        )
     }
 
     func replaceAutomaticallyAddedEvents(
@@ -80,7 +86,10 @@ final class CalendarEventExporter {
             throw CalendarExportError.calendarUnavailable
         }
 
-        _ = try clearAutomaticallyAddedEvents(from: calendar)
+        _ = try clearAutomaticallyAddedEvents(
+            from: calendar,
+            weekStarting: weekStarting
+        )
         return try export(
             portions,
             weekStarting: weekStarting,
@@ -121,8 +130,15 @@ final class CalendarEventExporter {
         )
     }
 
-    private func clearAutomaticallyAddedEvents(from calendar: EKCalendar) throws -> Int {
-        let currentIdentifier = Self.currentSyncIdentifier()
+    private func clearAutomaticallyAddedEvents(
+        from calendar: EKCalendar,
+        weekStarting: Date
+    ) throws -> Int {
+        let identifierCalendar = Self.identifierCalendar(for: .current)
+        let syncIdentifiers = Self.syncIdentifiers(
+            forWeekStarting: weekStarting,
+            calendar: identifierCalendar
+        )
         var removedCount = 0
 
         for interval in Self.eventSearchIntervals() {
@@ -132,7 +148,9 @@ final class CalendarEventExporter {
                 calendars: [calendar]
             )
             let matchingEvents = eventStore.events(matching: predicate).filter {
-                $0.notes?.contains(currentIdentifier) == true
+                guard let notes = $0.notes else { return false }
+
+                return Self.notes(notes, containsAny: syncIdentifiers)
             }
 
             for event in matchingEvents {
@@ -156,6 +174,11 @@ final class CalendarEventExporter {
     ) throws -> Int {
         let eventTimeZone = TimeZone.current
         let eventCalendar = Self.calendar(for: eventTimeZone)
+        let identifierCalendar = Self.identifierCalendar(for: eventTimeZone)
+        let syncIdentifier = Self.syncIdentifier(
+            forWeekStarting: weekStarting,
+            calendar: identifierCalendar
+        )
         let days = Self.eventDays(
             from: portions,
             weekStarting: weekStarting,
@@ -172,7 +195,10 @@ final class CalendarEventExporter {
             event.isAllDay = true
             event.startDate = day.date
             event.endDate = day.endDate(in: eventCalendar)
-            event.notes = Self.notes(for: day)
+            event.notes = Self.notes(
+                for: day,
+                syncIdentifier: syncIdentifier
+            )
 
             if let linkedRecipe = day.primaryRecipeLine {
                 event.url = FoodBasketDeepLink.recipeURL(for: linkedRecipe.recipeID)
@@ -248,6 +274,12 @@ final class CalendarEventExporter {
         return calendar
     }
 
+    private static func identifierCalendar(for timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
     private static func recipeLines(from portions: [PlannedMealPortion]) -> [CalendarEventRecipeLine] {
         let sortedPortions = portions.sorted { lhs, rhs in
             if lhs.sortOrder != rhs.sortOrder {
@@ -284,19 +316,66 @@ final class CalendarEventExporter {
         }
     }
 
-    private static func notes(for day: CalendarEventDay) -> String {
+    private static func notes(
+        for day: CalendarEventDay,
+        syncIdentifier: String
+    ) -> String {
         let recipeIDs = day.recipeLines
             .map(\.recipeID.uuidString)
             .joined(separator: ",")
 
         return """
         \(automaticallyAddedTag)
-        \(currentSyncIdentifier())
+        \(syncIdentifier)
         recipes=\(recipeIDs)
         """
     }
 
-    private static func currentSyncIdentifier(for date: Date = Date()) -> String {
+    private static func syncIdentifiers(
+        forWeekStarting weekStarting: Date,
+        calendar: Calendar
+    ) -> [String] {
+        let weekStarting = calendar.startOfDay(for: weekStarting)
+        var identifiers = [
+            syncIdentifier(
+                forWeekStarting: weekStarting,
+                calendar: calendar
+            ),
+        ]
+
+        if calendar.component(.weekday, from: weekStarting) == 2 {
+            identifiers.append(legacySyncIdentifier(for: weekStarting))
+        }
+
+        return identifiers
+    }
+
+    private static func syncIdentifier(
+        forWeekStarting weekStarting: Date,
+        calendar: Calendar
+    ) -> String {
+        let components = calendar.dateComponents(
+            [.year, .month, .day],
+            from: calendar.startOfDay(for: weekStarting)
+        )
+
+        guard let year = components.year,
+              let month = components.month,
+              let day = components.day else {
+            return "foodbasket-calendar-sync:\(Int(weekStarting.timeIntervalSince1970))"
+        }
+
+        return "foodbasket-calendar-sync:\(year)-\(String(format: "%02d", month))-\(String(format: "%02d", day))"
+    }
+
+    private static func notes(
+        _ notes: String,
+        containsAny syncIdentifiers: [String]
+    ) -> Bool {
+        syncIdentifiers.contains { notes.contains($0) }
+    }
+
+    private static func legacySyncIdentifier(for date: Date) -> String {
         var calendar = Calendar(identifier: .iso8601)
         calendar.timeZone = .current
 
