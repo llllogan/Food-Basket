@@ -31,7 +31,8 @@ enum RecipeURLRecipeImporter {
             name: recipeName(from: importedRecipe, sourceURL: url),
             method: importedRecipe.instructions.joined(separator: "\n\n"),
             cookingTimeMinutes: importedRecipe.cookingTimeMinutes ?? 0,
-            serves: serves(from: importedRecipe.recipeYield)
+            serves: serves(from: importedRecipe.recipeYield),
+            externalURL: url
         )
         modelContext.insert(recipe)
 

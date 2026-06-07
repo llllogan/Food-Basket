@@ -16,6 +16,7 @@ final class Recipe {
     var cookingTimeMinutes: Int = 0
     var serves: Int = 0
     var rating: Int = 0
+    var externalURL: URL?
     @Attribute(.externalStorage) var photoData: Data?
     var mealType: MealType?
 
@@ -32,6 +33,7 @@ final class Recipe {
         cookingTimeMinutes: Int = 0,
         serves: Int = 0,
         rating: Int = 0,
+        externalURL: URL? = nil,
         photoData: Data? = nil,
         mealType: MealType? = nil,
         ingredientLines: [RecipeIngredient]? = [],
@@ -43,6 +45,7 @@ final class Recipe {
         self.cookingTimeMinutes = cookingTimeMinutes
         self.serves = serves
         self.rating = rating
+        self.externalURL = externalURL
         self.photoData = photoData
         self.mealType = mealType
         self.ingredientLines = ingredientLines

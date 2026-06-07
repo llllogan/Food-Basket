@@ -5,12 +5,14 @@
 //  Created by Codex on 31/5/2026.
 //
 
+import LinkPresentation
 import SwiftData
 import SwiftUI
 import UIKit
 
 struct RecipeDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
     @Query(sort: [
         SortDescriptor(\PlannedMealPortion.dayOffset),
@@ -144,6 +146,10 @@ struct RecipeDetailView: View {
 
     private var clampedRecipeRating: Int {
         min(max(recipe.rating, 0), 5)
+    }
+
+    private var externalURL: URL? {
+        recipe.externalURL
     }
 
     var body: some View {
@@ -327,6 +333,10 @@ struct RecipeDetailView: View {
         Section("Method") {
             Text(recipe.method.isEmpty ? "No method added." : recipe.method)
                 .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
+
+            if let externalURL {
+                RecipeExternalURLPreviewRow(url: externalURL)
+            }
         }
     }
 
@@ -357,6 +367,16 @@ struct RecipeDetailView: View {
         }
 
         ToolbarSpacer(.fixed, placement: .topBarTrailing)
+
+        if let externalURL {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    openURL(externalURL)
+                } label: {
+                    Label("Open Recipe Website", systemImage: "safari")
+                }
+            }
+        }
 
         ToolbarItem(placement: .topBarTrailing) {
             Button {
@@ -925,6 +945,82 @@ struct RecipeDetailView: View {
 
     private func playRatingSelectionHaptic() {
         UISelectionFeedbackGenerator().selectionChanged()
+    }
+}
+
+private struct RecipeExternalURLPreviewRow: View {
+    let url: URL
+    @State private var metadata: LPLinkMetadata?
+    @State private var isLoading = false
+
+    var body: some View {
+        Group {
+            if let metadata {
+                RecipeLinkPreview(metadata: metadata)
+                    .frame(minHeight: 92)
+            } else {
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(uiColor: .secondarySystemBackground))
+                        .frame(width: 72, height: 72)
+                        .overlay {
+                            Image(systemName: "link")
+                                .foregroundStyle(.secondary)
+                        }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(url.host ?? url.absoluteString)
+                            .font(.headline)
+                            .lineLimit(2)
+
+                        Text(url.absoluteString)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .redacted(reason: isLoading ? .placeholder : [])
+            }
+        }
+        .padding(.vertical, 4)
+        .task(id: url) {
+            await loadMetadata()
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @MainActor
+    private func loadMetadata() async {
+        guard metadata == nil, !isLoading else { return }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        let provider = LPMetadataProvider()
+
+        do {
+            metadata = try await provider.startFetchingMetadata(for: url)
+        } catch {
+            let fallbackMetadata = LPLinkMetadata()
+            fallbackMetadata.originalURL = url
+            fallbackMetadata.url = url
+            fallbackMetadata.title = url.host ?? url.absoluteString
+            metadata = fallbackMetadata
+        }
+    }
+}
+
+private struct RecipeLinkPreview: UIViewRepresentable {
+    let metadata: LPLinkMetadata
+
+    func makeUIView(context: Context) -> LPLinkView {
+        LPLinkView(metadata: metadata)
+    }
+
+    func updateUIView(_ uiView: LPLinkView, context: Context) {
+        uiView.metadata = metadata
     }
 }
 
