@@ -650,8 +650,18 @@ struct WeekPlanView: View {
         HStack(spacing: 12) {
             IngredientThumbnailView(photoData: line.photoData)
 
-            Text(line.ingredientName)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(line.ingredientName)
+
+                if !line.recipeUsageSummary.isEmpty {
+                    Text(line.recipeUsageSummary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Spacer()
+
             Text(line.formattedAmount)
                 .foregroundStyle(.secondary)
         }

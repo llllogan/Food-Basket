@@ -14,6 +14,7 @@ struct ShoppingListLine: Identifiable {
     let unitSymbol: String
     let photoData: Data?
     var quantity: Double
+    var recipeUsages: [ShoppingListRecipeUsage] = []
 
     var id: String {
         "\(ingredientID.uuidString)-\(unitSymbol)"
@@ -28,14 +29,38 @@ struct ShoppingListLine: Identifiable {
         return "\(formattedQuantity) \(unitSymbol)"
     }
 
+    var recipeUsageSummary: String {
+        let sortedUsages = recipeUsages
+            .sorted {
+                if $0.firstSortOrder == $1.firstSortOrder {
+                    return $0.recipeName.localizedCaseInsensitiveCompare($1.recipeName) == .orderedAscending
+                }
+
+                return $0.firstSortOrder < $1.firstSortOrder
+            }
+
+        guard sortedUsages.count != 1 else {
+            return sortedUsages[0].recipeName
+        }
+
+        return sortedUsages
+            .map(\.formattedUsage)
+            .joined(separator: " | ")
+    }
+
     static func makeLines(for plan: WeekPlan?) -> [ShoppingListLine] {
         guard let plan else { return [] }
 
         var linesByID: [String: ShoppingListLine] = [:]
 
-        for plannedMeal in plan.plannedMeals ?? [] {
+        for plannedMeal in (plan.plannedMeals ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
             guard let recipe = plannedMeal.recipe else { continue }
-            addLines(from: recipe, multiplier: plannedMeal.quantityMultiplier, to: &linesByID)
+            addLines(
+                from: recipe,
+                multiplier: plannedMeal.quantityMultiplier,
+                firstSortOrder: plannedMeal.sortOrder,
+                to: &linesByID
+            )
         }
 
         return sortedLines(from: linesByID)
@@ -50,6 +75,7 @@ struct ShoppingListLine: Identifiable {
     private static func addLines(
         from recipe: Recipe,
         multiplier: Double,
+        firstSortOrder: Int = 0,
         to linesByID: inout [String: ShoppingListLine]
     ) {
         for recipeLine in recipe.ingredientLines ?? [] {
@@ -61,6 +87,12 @@ struct ShoppingListLine: Identifiable {
 
             if linesByID[key] != nil {
                 linesByID[key]?.quantity += quantity
+                linesByID[key]?.addRecipeUsage(
+                    recipeID: recipe.id,
+                    recipeName: recipe.name,
+                    quantity: quantity,
+                    firstSortOrder: firstSortOrder
+                )
             } else {
                 linesByID[key] = ShoppingListLine(
                     ingredientID: ingredient.id,
@@ -68,7 +100,16 @@ struct ShoppingListLine: Identifiable {
                     categoryName: ingredient.category?.name ?? "Other",
                     unitSymbol: unitSymbol,
                     photoData: ingredient.photoData,
-                    quantity: quantity
+                    quantity: quantity,
+                    recipeUsages: [
+                        ShoppingListRecipeUsage(
+                            recipeID: recipe.id,
+                            recipeName: recipe.name,
+                            quantity: quantity,
+                            unitSymbol: unitSymbol,
+                            firstSortOrder: firstSortOrder
+                        ),
+                    ]
                 )
             }
         }
@@ -81,5 +122,52 @@ struct ShoppingListLine: Identifiable {
             }
             return $0.categoryName.localizedCaseInsensitiveCompare($1.categoryName) == .orderedAscending
         }
+    }
+
+    private mutating func addRecipeUsage(
+        recipeID: UUID,
+        recipeName: String,
+        quantity: Double,
+        firstSortOrder: Int
+    ) {
+        guard let existingIndex = recipeUsages.firstIndex(where: { $0.recipeID == recipeID }) else {
+            recipeUsages.append(
+                ShoppingListRecipeUsage(
+                    recipeID: recipeID,
+                    recipeName: recipeName,
+                    quantity: quantity,
+                    unitSymbol: unitSymbol,
+                    firstSortOrder: firstSortOrder
+                )
+            )
+            return
+        }
+
+        recipeUsages[existingIndex].quantity += quantity
+        recipeUsages[existingIndex].firstSortOrder = min(
+            recipeUsages[existingIndex].firstSortOrder,
+            firstSortOrder
+        )
+    }
+}
+
+struct ShoppingListRecipeUsage {
+    let recipeID: UUID
+    let recipeName: String
+    var quantity: Double
+    let unitSymbol: String
+    var firstSortOrder: Int
+
+    private var formattedQuantity: String {
+        quantity.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    private var formattedAmount: String {
+        guard !unitSymbol.isEmpty else { return formattedQuantity }
+        return "\(formattedQuantity) \(unitSymbol)"
+    }
+
+    var formattedUsage: String {
+        "\(recipeName) - \(formattedAmount)"
     }
 }
