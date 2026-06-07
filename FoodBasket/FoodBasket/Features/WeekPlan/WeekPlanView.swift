@@ -1322,6 +1322,11 @@ private struct WeekPlanCalendarView: View {
         return dayOffset(containing: location)
     }
 
+    private var portionCountText: String {
+        let count = portions.count
+        return "Total: \(count) \(count == 1 ? "portion" : "portions")"
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             LazyVGrid(columns: columns, spacing: 12) {
@@ -1363,6 +1368,13 @@ private struct WeekPlanCalendarView: View {
             stopBlinking(clearRequestedHighlights: true)
         }
         .padding(.vertical, 4)
+
+        HStack(spacing: 4) {
+            Image(systemName: "person.2")
+            Text(portionCountText)
+        }
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(.secondary)
         
         Text("Hold and drag meals to assign them to a day. To remove a meal, swipe to delete it from the Meals tab.")
             .font(.subheadline)

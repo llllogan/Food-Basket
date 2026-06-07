@@ -11,6 +11,7 @@ import ImagePlayground
 import UIKit
 
 struct IngredientDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @Bindable var ingredient: Ingredient
@@ -25,6 +26,16 @@ struct IngredientDetailView: View {
     @State private var isGeneratingImage = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
+    @State private var showingDeleteConfirmation = false
+
+    private var usedRecipes: [Recipe] {
+        Self.usedRecipes(for: ingredient)
+    }
+
+    private var usedRecipesText: String {
+        let count = usedRecipes.count
+        return "Used in \(count) \(count == 1 ? "recipe" : "recipes")"
+    }
 
     init(
         ingredient: Ingredient,
@@ -50,6 +61,13 @@ struct IngredientDetailView: View {
                     .onChange(of: ingredient.name) {
                         ingredient.normalizedName = ingredient.name.normalizedLookupValue
                     }
+
+                NavigationLink {
+                    IngredientRecipesView(ingredient: ingredient)
+                } label: {
+                    Text(usedRecipesText)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let recipeIngredientLine {
@@ -108,6 +126,15 @@ struct IngredientDetailView: View {
         .toolbarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    showingDeleteConfirmation = true
+                } label: {
+                    Label("Delete Ingredient", systemImage: "trash")
+                }
+                .tint(.red)
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     takePhoto()
                 } label: {
@@ -129,6 +156,15 @@ struct IngredientDetailView: View {
                     .disabled(isGeneratingImage)
                 }
             }
+        }
+        .alert("Delete Ingredient?", isPresented: $showingDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                deleteIngredient()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will remove \(ingredient.name) and remove it from any recipes that use it.")
         }
         .alert("New Category", isPresented: $showingNewCategoryAlert) {
             TextField("Category name", text: $newCategoryName)
@@ -232,6 +268,80 @@ struct IngredientDetailView: View {
         }
 
         showingCamera = true
+    }
+
+    private func deleteIngredient() {
+        for recipeLine in ingredient.recipeLines ?? [] {
+            modelContext.delete(recipeLine)
+        }
+
+        modelContext.delete(ingredient)
+        try? modelContext.save()
+        dismiss()
+    }
+
+    fileprivate static func usedRecipes(for ingredient: Ingredient) -> [Recipe] {
+        var recipesByID: [UUID: Recipe] = [:]
+
+        for recipeLine in ingredient.recipeLines ?? [] {
+            guard let recipe = recipeLine.recipe else { continue }
+            recipesByID[recipe.id] = recipe
+        }
+
+        return recipesByID.values.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+}
+
+private struct IngredientRecipesView: View {
+    let ingredient: Ingredient
+
+    private var recipes: [Recipe] {
+        IngredientDetailView.usedRecipes(for: ingredient)
+    }
+
+    var body: some View {
+        List {
+            if recipes.isEmpty {
+                ContentUnavailableView {
+                    Label("No Recipes", systemImage: "book.closed")
+                } description: {
+                    Text("This ingredient is not used in any recipes yet.")
+                }
+                .listRowSeparator(.hidden)
+            }
+
+            ForEach(recipes) { recipe in
+                NavigationLink {
+                    RecipeDetailView(recipe: recipe)
+                } label: {
+                    HStack(spacing: 12) {
+                        RecipeThumbnailView(photoData: recipe.photoData)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(recipe.name)
+
+                            Text(recipeListSubtitle(for: recipe))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .navigationTitle(ingredient.name)
+        .toolbarTitleDisplayMode(.inline)
+    }
+
+    private func recipeListSubtitle(for recipe: Recipe) -> String {
+        let ingredientDescription = "\(recipe.ingredientLines?.count ?? 0) ingredients"
+        guard let mealTypeName = recipe.mealType?.name, !mealTypeName.isEmpty else {
+            return ingredientDescription
+        }
+
+        return "\(mealTypeName) | \(ingredientDescription)"
     }
 }
 

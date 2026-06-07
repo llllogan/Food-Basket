@@ -11,6 +11,7 @@ import SwiftUI
 import UIKit
 
 struct RecipeDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
@@ -358,6 +359,7 @@ struct RecipeDetailView: View {
 
     @ToolbarContentBuilder
     private var recipeToolbar: some ToolbarContent {
+        
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 showingEditRecipe = true
@@ -367,6 +369,15 @@ struct RecipeDetailView: View {
         }
 
         ToolbarSpacer(.fixed, placement: .topBarTrailing)
+        
+        ToolbarItem(placement: .topBarTrailing) {
+            Button(role: .destructive) {
+                activeAlert = .deleteConfirmation
+            } label: {
+                Label("Delete Recipe", systemImage: "trash")
+            }
+            .tint(.red)
+        }
 
         if let externalURL {
             ToolbarItem(placement: .topBarTrailing) {
@@ -928,7 +939,26 @@ struct RecipeDetailView: View {
                 message: Text(exportAlert.message),
                 dismissButton: .default(Text("OK"))
             )
+        case .deleteConfirmation:
+            Alert(
+                title: Text("Delete Recipe?"),
+                message: Text("This will delete \(recipe.name) and remove it from any week plans."),
+                primaryButton: .cancel(Text("Cancel")),
+                secondaryButton: .destructive(Text("Delete")) {
+                    deleteRecipe()
+                }
+            )
         }
+    }
+
+    private func deleteRecipe() {
+        for plannedMeal in recipe.plannedMeals ?? [] {
+            modelContext.delete(plannedMeal)
+        }
+
+        modelContext.delete(recipe)
+        try? modelContext.save()
+        dismiss()
     }
 
     private func playGroceryMenuHaptic() {
@@ -1028,6 +1058,7 @@ private enum RecipeDetailAlert: Identifiable {
     case cameraUnavailable
     case duplicateThisWeekUpdate(ThisWeekDuplicateUpdate)
     case export(ReminderExportAlert)
+    case deleteConfirmation
 
     var id: String {
         switch self {
@@ -1037,6 +1068,8 @@ private enum RecipeDetailAlert: Identifiable {
             "duplicate-\(update.id.uuidString)"
         case .export(let alert):
             "export-\(alert.id.uuidString)"
+        case .deleteConfirmation:
+            "delete-confirmation"
         }
     }
 }
