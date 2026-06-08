@@ -204,6 +204,8 @@ struct RecipeDetailView: View {
             recipeActionRow
             ingredientsSection
             methodSection
+            URLSnapshotSection
+                .listRowSeparator(.hidden)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -334,7 +336,11 @@ struct RecipeDetailView: View {
         Section("Method") {
             Text(recipe.method.isEmpty ? "No method added." : recipe.method)
                 .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
-
+        }
+    }
+    
+    private var URLSnapshotSection: some View {
+        Section {
             if let externalURL {
                 RecipeExternalURLPreviewRow(url: externalURL)
             }
