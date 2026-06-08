@@ -1,18 +1,18 @@
 {
   "fill" : {
-    "solid" : "display-p3:0.93459,0.96783,0.95971,1.00000"
+    "solid" : "display-p3:0.97586,0.99038,1.00000,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "Image.png",
-          "name" : "Image",
+          "image-name" : "image 2.png",
+          "name" : "image 2",
           "position" : {
-            "scale" : 1.1,
+            "scale" : 0.9,
             "translation-in-points" : [
-              1.2000000000000455,
-              19.199999999999932
+              -9,
+              7.649999999999977
             ]
           }
         }
