@@ -16,6 +16,17 @@ struct IngredientsView: View {
     @State private var searchText = ""
     @State private var selectedCategoryFilterID: UUID?
     @State private var recipeFilter = IngredientRecipeFilter.all
+    @AppStorage(IngredientListOrganiseDefaults.modeKey)
+    private var organiseModeRawValue = IngredientListOrganiseMode.name.rawValue
+
+    private var organiseMode: IngredientListOrganiseMode {
+        get {
+            IngredientListOrganiseMode(rawValue: organiseModeRawValue) ?? .name
+        }
+        nonmutating set {
+            organiseModeRawValue = newValue.rawValue
+        }
+    }
 
     private var filteredIngredients: [Ingredient] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,6 +52,37 @@ struct IngredientsView: View {
         return categoryMatchedIngredients.filter {
             recipeFilter.includes($0)
         }
+    }
+
+    private var categorySections: [IngredientCategorySection] {
+        let uncategorisedIngredients = filteredIngredients.filter {
+            $0.category == nil
+        }
+        let uncategorisedSection = IngredientCategorySection(
+            id: "uncategorised",
+            title: "No category",
+            ingredients: IngredientListOrganiseMode.sortedByName(uncategorisedIngredients)
+        )
+
+        let categorisedSections = categories.compactMap { category -> IngredientCategorySection? in
+            let ingredients = filteredIngredients.filter {
+                $0.category?.id == category.id
+            }
+
+            guard !ingredients.isEmpty else { return nil }
+
+            return IngredientCategorySection(
+                id: category.id.uuidString,
+                title: category.name,
+                ingredients: IngredientListOrganiseMode.sortedByName(ingredients)
+            )
+        }
+
+        if uncategorisedSection.ingredients.isEmpty {
+            return categorisedSections
+        }
+
+        return categorisedSections + [uncategorisedSection]
     }
 
     private var hasActiveFilters: Bool {
@@ -83,23 +125,26 @@ struct IngredientsView: View {
                     .listRowInsets(emptyStateInsets)
                 }
 
-                ForEach(filteredIngredients) { ingredient in
-                    NavigationLink {
-                        IngredientDetailView(ingredient: ingredient)
-                    } label: {
-                        HStack(spacing: 12) {
-                            IngredientThumbnailView(photoData: ingredient.photoData)
-
-                            VStack(alignment: .leading) {
-                                Text(ingredient.name)
-                                Text(ingredient.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                switch organiseMode {
+                case .name:
+                    ForEach(IngredientListOrganiseMode.sortedByName(filteredIngredients)) { ingredient in
+                        ingredientRow(for: ingredient)
+                    }
+                    .onDelete { offsets in
+                        deleteIngredients(at: offsets)
+                    }
+                case .category:
+                    ForEach(categorySections) { section in
+                        Section(section.title) {
+                            ForEach(section.ingredients) { ingredient in
+                                ingredientRow(for: ingredient)
+                            }
+                            .onDelete { offsets in
+                                deleteIngredients(at: offsets, in: section.ingredients)
                             }
                         }
                     }
                 }
-                .onDelete(perform: deleteIngredients)
             }
             .listStyle(.plain)
             .navigationTitle("Ingredients")
@@ -138,25 +183,23 @@ struct IngredientsView: View {
 
     private var ingredientFilterMenu: some View {
         Menu {
-            Section("Filter") {
+            Section("Organise") {
                 Button {
-                    selectedCategoryFilterID = nil
+                    organiseMode = .name
                 } label: {
                     filterMenuLabel(
-                        "All",
-                        isSelected: selectedCategoryFilterID == nil
+                        "by Name",
+                        isSelected: organiseMode == .name
                     )
                 }
 
-                ForEach(categories) { category in
-                    Button {
-                        selectedCategoryFilterID = category.id
-                    } label: {
-                        filterMenuLabel(
-                            category.name,
-                            isSelected: selectedCategoryFilterID == category.id
-                        )
-                    }
+                Button {
+                    organiseMode = .category
+                } label: {
+                    filterMenuLabel(
+                        "by Category",
+                        isSelected: organiseMode == .category
+                    )
                 }
             }
 
@@ -188,6 +231,29 @@ struct IngredientsView: View {
                     )
                 }
             }
+            
+            Section("Filter") {
+                Button {
+                    selectedCategoryFilterID = nil
+                } label: {
+                    filterMenuLabel(
+                        "All",
+                        isSelected: selectedCategoryFilterID == nil
+                    )
+                }
+
+                ForEach(categories) { category in
+                    Button {
+                        selectedCategoryFilterID = category.id
+                    } label: {
+                        filterMenuLabel(
+                            category.name,
+                            isSelected: selectedCategoryFilterID == category.id
+                        )
+                    }
+                }
+            }
+
         } label: {
             Label(
                 "Filter Ingredients",
@@ -207,6 +273,23 @@ struct IngredientsView: View {
         }
     }
 
+    private func ingredientRow(for ingredient: Ingredient) -> some View {
+        NavigationLink {
+            IngredientDetailView(ingredient: ingredient)
+        } label: {
+            HStack(spacing: 12) {
+                IngredientThumbnailView(photoData: ingredient.photoData)
+
+                VStack(alignment: .leading) {
+                    Text(ingredient.name)
+                    Text(ingredient.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
     private func clearIngredientFilters() {
         searchText = ""
         selectedCategoryFilterID = nil
@@ -214,8 +297,15 @@ struct IngredientsView: View {
     }
 
     private func deleteIngredients(at offsets: IndexSet) {
-        let deletedIngredients = offsets.map { filteredIngredients[$0] }
+        let ingredientsByName = IngredientListOrganiseMode.sortedByName(filteredIngredients)
+        deleteIngredients(offsets.map { ingredientsByName[$0] })
+    }
 
+    private func deleteIngredients(at offsets: IndexSet, in ingredients: [Ingredient]) {
+        deleteIngredients(offsets.map { ingredients[$0] })
+    }
+
+    private func deleteIngredients(_ deletedIngredients: [Ingredient]) {
         for ingredient in deletedIngredients {
             for recipeLine in ingredient.recipeLines ?? [] {
                 modelContext.delete(recipeLine)
@@ -224,6 +314,29 @@ struct IngredientsView: View {
             modelContext.delete(ingredient)
         }
     }
+}
+
+private enum IngredientListOrganiseDefaults {
+    static let modeKey = "ingredientListOrganiseMode"
+}
+
+private enum IngredientListOrganiseMode: String {
+    case name
+    case category
+
+    nonisolated static func sortedByName(_ ingredients: [Ingredient]) -> [Ingredient] {
+        ingredients.sorted(by: sortByName)
+    }
+
+    private nonisolated static func sortByName(_ lhs: Ingredient, _ rhs: Ingredient) -> Bool {
+        lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+}
+
+private struct IngredientCategorySection: Identifiable {
+    let id: String
+    let title: String
+    let ingredients: [Ingredient]
 }
 
 private enum IngredientRecipeFilter {
