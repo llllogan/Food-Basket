@@ -2,6 +2,22 @@
 
 Food Basket is an iOS meal-planning app for managing recipes, planning dinners for the current week, exporting a generated shopping list to Reminders, and adding meal plans to Calendar.
 
+## Screenshots
+
+These screenshots use the app's preview dataset so placeholder recipes, ingredients, and weekly planning content are visible.
+
+| Recipes | Recipe Detail | This Week |
+| --- | --- | --- |
+| <img src="docs/screenshots/recipes.png" alt="Recipes list with placeholder meals" width="240"> | <img src="docs/screenshots/recipe-detail.png" alt="Recipe detail with ingredients and this week controls" width="240"> | <img src="docs/screenshots/this-week-meals.png" alt="This Week meals view with planned placeholder meals" width="240"> |
+
+| Calendar | Grocery List | Ingredients |
+| --- | --- | --- |
+| <img src="docs/screenshots/this-week-calendar.png" alt="This Week calendar view with scheduled meal portions" width="240"> | <img src="docs/screenshots/grocery-list.png" alt="Generated grocery list grouped by category" width="240"> | <img src="docs/screenshots/ingredients.png" alt="Ingredients list with placeholder ingredient records" width="240"> |
+
+| Settings |
+| --- |
+| <img src="docs/screenshots/settings.png" alt="Settings view for calendar sync and meal plan defaults" width="240"> |
+
 ## Features
 
 - Create, edit, search, and delete recipes.

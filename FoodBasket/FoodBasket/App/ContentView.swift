@@ -19,10 +19,12 @@ struct ContentView: View {
 
     init(
         selectedTab: FoodBasketTab,
-        selectedWeekPlanMode: WeekPlanDisplayMode = .list
+        selectedWeekPlanMode: WeekPlanDisplayMode = .list,
+        selectedRecipeID: UUID? = nil
     ) {
         _selectedTab = State(initialValue: selectedTab)
         _selectedWeekPlanMode = State(initialValue: selectedWeekPlanMode)
+        _selectedRecipeID = State(initialValue: selectedRecipeID)
     }
 
     var body: some View {

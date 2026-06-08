@@ -55,6 +55,7 @@ struct PreviewData {
             method: "Roast the chicken with lemon, steam the broccoli, and serve with rice.",
             cookingTimeMinutes: 45,
             serves: 4,
+            rating: 4,
             externalURL: URL(string: "https://example.com/lemon-chicken-with-rice"),
             mealType: dinner
         )
@@ -68,6 +69,7 @@ struct PreviewData {
             method: "Steam the broccoli and serve over rice with your preferred dressing.",
             cookingTimeMinutes: 25,
             serves: 2,
+            rating: 5,
             mealType: lunch
         )
         Self.add(broccoli, quantity: 2, to: broccoliRice, in: modelContext)
