@@ -230,13 +230,13 @@ struct WeekPlanView: View {
         NavigationStack {
             contentList
             .navigationTitle("This Week")
+            .toolbarTitleDisplayMode(.inlineLarge)
             .safeAreaInset(edge: .top) {
                 modePicker
                     .padding(.horizontal)
                     .padding(.top, 6)
                     .padding(.bottom, 10)
             }
-            .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 
                 ToolbarItem(placement: .topBarTrailing) {
