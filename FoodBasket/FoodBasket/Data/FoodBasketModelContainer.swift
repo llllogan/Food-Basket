@@ -36,7 +36,11 @@ enum FoodBasketModelContainer {
             }
             #endif
 
-            return try ModelContainer(for: schema, configurations: [configuration])
+            return try ModelContainer(
+                for: schema,
+                migrationPlan: FoodBasketDataMigrationPlan.self,
+                configurations: [configuration]
+            )
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

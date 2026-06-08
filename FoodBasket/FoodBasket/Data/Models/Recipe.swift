@@ -82,6 +82,7 @@ final class RecipeIngredient {
     var sortOrder: Int = 0
     var recipe: Recipe?
     var ingredient: Ingredient?
+    var unit: MeasurementUnit?
 
     init(
         id: UUID = UUID(),
@@ -89,7 +90,8 @@ final class RecipeIngredient {
         preparationMethod: String = "",
         sortOrder: Int = 0,
         recipe: Recipe? = nil,
-        ingredient: Ingredient? = nil
+        ingredient: Ingredient? = nil,
+        unit: MeasurementUnit? = nil
     ) {
         self.id = id
         self.quantity = quantity
@@ -97,5 +99,6 @@ final class RecipeIngredient {
         self.sortOrder = sortOrder
         self.recipe = recipe
         self.ingredient = ingredient
+        self.unit = unit
     }
 }

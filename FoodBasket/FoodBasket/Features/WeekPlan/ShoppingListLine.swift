@@ -81,7 +81,7 @@ struct ShoppingListLine: Identifiable {
         for recipeLine in recipe.ingredientLines ?? [] {
             guard let ingredient = recipeLine.ingredient else { continue }
 
-            let unitSymbol = ingredient.unit?.symbol ?? ""
+            let unitSymbol = recipeLine.unit?.symbol ?? ""
             let key = "\(ingredient.id.uuidString)-\(unitSymbol)"
             let quantity = recipeLine.quantity * multiplier
 

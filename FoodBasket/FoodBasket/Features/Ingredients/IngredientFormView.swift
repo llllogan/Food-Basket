@@ -16,21 +16,14 @@ struct IngredientFormView: View {
     @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
-    @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
 
     let onSave: ((Ingredient) -> Void)?
 
     @State private var name = ""
-    @State private var defaultQuantity = 1.0
     @State private var selectedCategoryID: UUID?
-    @State private var selectedUnitID: UUID?
     @State private var newCategoryName = ""
-    @State private var newUnitName = ""
-    @State private var newUnitSymbol = ""
     @State private var showingNewCategoryAlert = false
-    @State private var showingNewUnitAlert = false
     @State private var locallyCreatedCategories: [IngredientCategory] = []
-    @State private var locallyCreatedUnits: [MeasurementUnit] = []
     @State private var categorySuggestionState: CategorySuggestionState = .idle
     @State private var suggestedCategoryID: UUID?
     @State private var manuallySelectedCategoryName: String?
@@ -52,18 +45,6 @@ struct IngredientFormView: View {
         } set: { newValue in
             guard newValue != selectedCategoryID else { return }
             selectCategory(newValue, manually: true)
-        }
-    }
-
-    private var unitSelection: Binding<UUID?> {
-        Binding {
-            selectedUnitID
-        } set: { newValue in
-            selectedUnitID = newValue
-            cleanupTemporaryItems(
-                keepingCategoryID: selectedCategoryID,
-                keepingUnitID: newValue
-            )
         }
     }
 
@@ -125,21 +106,6 @@ struct IngredientFormView: View {
             
             Section("Ingredient") {
                 TextField("Name", text: $name)
-                Picker("Unit", selection: unitSelection) {
-                    Text("None").tag(nil as UUID?)
-
-                    ForEach(units) { unit in
-                        Text("\(unit.name) (\(unit.symbol))").tag(unit.id as UUID?)
-                    }
-                }
-
-                Button {
-                    newUnitName = ""
-                    newUnitSymbol = ""
-                    showingNewUnitAlert = true
-                } label: {
-                    Text("New Unit")
-                }
             }
 
             Section {
@@ -170,15 +136,6 @@ struct IngredientFormView: View {
                     Text("New Category")
                 }
             }
-            
-            Section {
-                TextField("Default quantity", value: $defaultQuantity, format: .number)
-                    .keyboardType(.decimalPad)
-            } header: {
-                Text("Default Amount")
-            } footer: {
-                Text("When adding this ingredient to a recipe, this is the amount that will be used if you don't specify anything.")
-            }
 
         }
         .navigationTitle("New Ingredient")
@@ -194,14 +151,8 @@ struct IngredientFormView: View {
                 Button("Save") {
                     save()
                 }
-                .disabled(
-                    name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                    defaultQuantity <= 0
-                )
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-        }
-        .task {
-            selectDefaultUnitIfNeeded()
         }
         .task(id: categorySuggestionKey) {
             await suggestCategoryIfNeeded()
@@ -216,17 +167,6 @@ struct IngredientFormView: View {
                 createCategoryFromAlert()
             }
             .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            Button("Cancel", role: .cancel) {}
-        }
-        .alert("New Unit", isPresented: $showingNewUnitAlert) {
-            TextField("Unit name", text: $newUnitName)
-            TextField("Symbol (mL, tsp)", text: $newUnitSymbol)
-
-            Button("Add") {
-                createUnitFromAlert()
-            }
-            .disabled(newUnitName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             Button("Cancel", role: .cancel) {}
         }
@@ -246,7 +186,7 @@ struct IngredientFormView: View {
         }
         .onDisappear {
             guard !didFinish else { return }
-            cleanupTemporaryItems(keepingCategoryID: nil, keepingUnitID: nil)
+            cleanupTemporaryItems(keepingCategoryID: nil)
         }
     }
 
@@ -254,7 +194,7 @@ struct IngredientFormView: View {
         if let existingIngredient = ingredients.first(where: {
             $0.normalizedName == trimmedName.normalizedLookupValue
         }) {
-            cleanupTemporaryItems(keepingCategoryID: nil, keepingUnitID: nil)
+            cleanupTemporaryItems(keepingCategoryID: nil)
             didFinish = true
             onSave?(existingIngredient)
             dismiss()
@@ -264,34 +204,23 @@ struct IngredientFormView: View {
         var category = categories.first { $0.id == selectedCategoryID }
         category = category ?? locallyCreatedCategories.first { $0.id == selectedCategoryID }
 
-        var unit = units.first { $0.id == selectedUnitID }
-        unit = unit ?? locallyCreatedUnits.first { $0.id == selectedUnitID }
-
         let ingredient = Ingredient(
             name: trimmedName,
-            defaultQuantity: defaultQuantity,
             photoData: draftPhotoData,
-            category: category,
-            unit: unit
+            category: category
         )
         modelContext.insert(ingredient)
-        cleanupTemporaryItems(keepingCategoryID: category?.id, keepingUnitID: unit?.id)
+        cleanupTemporaryItems(keepingCategoryID: category?.id)
         locallyCreatedCategories = []
-        locallyCreatedUnits = []
         didFinish = true
         onSave?(ingredient)
         dismiss()
     }
 
     private func cancel() {
-        cleanupTemporaryItems(keepingCategoryID: nil, keepingUnitID: nil)
+        cleanupTemporaryItems(keepingCategoryID: nil)
         didFinish = true
         dismiss()
-    }
-
-    private func selectDefaultUnitIfNeeded() {
-        guard selectedUnitID == nil else { return }
-        selectedUnitID = units.first(where: { $0.normalizedName == "each" })?.id
     }
 
     private func selectCategory(_ categoryID: UUID?, manually: Bool) {
@@ -303,10 +232,7 @@ struct IngredientFormView: View {
             categorySuggestionState = .idle
         }
 
-        cleanupTemporaryItems(
-            keepingCategoryID: categoryID,
-            keepingUnitID: selectedUnitID
-        )
+        cleanupTemporaryItems(keepingCategoryID: categoryID)
     }
 
     private func createCategoryFromAlert() {
@@ -334,39 +260,7 @@ struct IngredientFormView: View {
         try? modelContext.save()
     }
 
-    private func createUnitFromAlert() {
-        let normalizedName = newUnitName.normalizedLookupValue
-        guard !normalizedName.isEmpty else { return }
-
-        let existingUnit = units.first {
-            $0.normalizedName == normalizedName
-        } ?? locallyCreatedUnits.first {
-            $0.normalizedName == normalizedName
-        }
-
-        let unit: MeasurementUnit
-        if let existingUnit {
-            unit = existingUnit
-        } else {
-            let trimmedName = newUnitName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedSymbol = newUnitSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
-            unit = MeasurementUnit(
-                name: trimmedName,
-                symbol: trimmedSymbol.isEmpty ? trimmedName : trimmedSymbol
-            )
-            modelContext.insert(unit)
-            locallyCreatedUnits.append(unit)
-        }
-
-        selectedUnitID = unit.id
-        cleanupTemporaryItems(
-            keepingCategoryID: selectedCategoryID,
-            keepingUnitID: unit.id
-        )
-        try? modelContext.save()
-    }
-
-    private func cleanupTemporaryItems(keepingCategoryID: UUID?, keepingUnitID: UUID?) {
+    private func cleanupTemporaryItems(keepingCategoryID: UUID?) {
         locallyCreatedCategories.removeAll { category in
             guard category.id != keepingCategoryID else { return false }
 
@@ -376,20 +270,6 @@ struct IngredientFormView: View {
 
             if selectedCategoryID == category.id {
                 selectedCategoryID = nil
-            }
-
-            return true
-        }
-
-        locallyCreatedUnits.removeAll { unit in
-            guard unit.id != keepingUnitID else { return false }
-
-            if unit.ingredients?.isEmpty ?? true {
-                modelContext.delete(unit)
-            }
-
-            if selectedUnitID == unit.id {
-                selectedUnitID = nil
             }
 
             return true

@@ -245,10 +245,7 @@ private enum IngredientRecipeFilter {
 
 private extension Ingredient {
     var subtitle: String {
-        let quantity = defaultQuantity.formatted(.number.precision(.fractionLength(0...2)))
-        let unitDescription = unit?.symbol ?? "no unit"
-        let categoryDescription = category?.name ?? "No category"
-        return "\(quantity) \(unitDescription) | \(categoryDescription)"
+        category?.name ?? "No category"
     }
 
     var isUsedInRecipe: Bool {

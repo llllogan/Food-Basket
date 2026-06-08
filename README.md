@@ -22,7 +22,7 @@ These screenshots use the app's preview dataset so placeholder recipes, ingredie
 
 - Create, edit, search, and delete recipes.
 - Record a recipe's method, cooking time in minutes, serving count, ingredients, and meal photo.
-- Create, edit, search, and delete ingredients with categories, units, default quantities, and generated images.
+- Create, edit, search, and delete ingredients with categories and generated images.
 - Add recipes to the current week's meal plan and open their recipe details directly from the weekly view.
 - Generate a categorized shopping list from the current meal plan.
 - Export shopping-list items to a selected Reminders list and remove items previously added by Food Basket.

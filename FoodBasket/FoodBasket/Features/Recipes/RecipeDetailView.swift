@@ -1173,7 +1173,7 @@ private extension RecipeIngredient {
 
     var formattedQuantity: String {
         let amount = quantity.formatted(.number.precision(.fractionLength(0...2)))
-        guard let symbol = ingredient?.unit?.symbol, !symbol.isEmpty else {
+        guard let symbol = unit?.symbol, !symbol.isEmpty else {
             return amount
         }
         return "\(amount) \(symbol)"

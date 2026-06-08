@@ -13,10 +13,8 @@ final class Ingredient {
     var id: UUID = UUID()
     var name: String = ""
     var normalizedName: String = ""
-    var defaultQuantity: Double = 1
     @Attribute(.externalStorage) var photoData: Data?
     var category: IngredientCategory?
-    var unit: MeasurementUnit?
 
     @Relationship(deleteRule: .nullify, inverse: \RecipeIngredient.ingredient)
     var recipeLines: [RecipeIngredient]? = []
@@ -24,19 +22,15 @@ final class Ingredient {
     init(
         id: UUID = UUID(),
         name: String,
-        defaultQuantity: Double = 1,
         photoData: Data? = nil,
         category: IngredientCategory? = nil,
-        unit: MeasurementUnit? = nil,
         recipeLines: [RecipeIngredient]? = []
     ) {
         self.id = id
         self.name = name
         self.normalizedName = name.normalizedLookupValue
-        self.defaultQuantity = defaultQuantity
         self.photoData = photoData
         self.category = category
-        self.unit = unit
         self.recipeLines = recipeLines
     }
 }
@@ -69,19 +63,19 @@ final class MeasurementUnit {
     var normalizedName: String = ""
     var symbol: String = ""
 
-    @Relationship(deleteRule: .nullify, inverse: \Ingredient.unit)
-    var ingredients: [Ingredient]? = []
+    @Relationship(deleteRule: .nullify, inverse: \RecipeIngredient.unit)
+    var recipeLines: [RecipeIngredient]? = []
 
     init(
         id: UUID = UUID(),
         name: String,
         symbol: String,
-        ingredients: [Ingredient]? = []
+        recipeLines: [RecipeIngredient]? = []
     ) {
         self.id = id
         self.name = name
         self.normalizedName = name.normalizedLookupValue
         self.symbol = symbol
-        self.ingredients = ingredients
+        self.recipeLines = recipeLines
     }
 }

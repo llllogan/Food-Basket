@@ -41,18 +41,19 @@ enum RecipeURLRecipeImporter {
 
         var recipeLines: [RecipeIngredient] = []
         for importedIngredient in importedRecipe.ingredients {
+            let matchedUnit = unit(for: importedIngredient.unitText, in: units)
             let ingredient = ingredientForImportedIngredient(
                 importedIngredient,
                 ingredientsByName: &ingredientsByName,
-                units: units,
                 in: modelContext
             )
 
             let line = RecipeIngredient(
-                quantity: importedIngredient.quantity ?? ingredient.defaultQuantity,
+                quantity: importedIngredient.quantity ?? 1,
                 preparationMethod: sentenceCased(importedIngredient.preparationMethod ?? ""),
                 sortOrder: recipeLines.count,
-                ingredient: ingredient
+                ingredient: ingredient,
+                unit: matchedUnit
             )
             recipeLines.append(line)
             modelContext.insert(line)
@@ -66,26 +67,18 @@ enum RecipeURLRecipeImporter {
     private static func ingredientForImportedIngredient(
         _ importedIngredient: ImportedRecipeIngredient,
         ingredientsByName: inout [String: Ingredient],
-        units: [MeasurementUnit],
         in modelContext: ModelContext
     ) -> Ingredient {
         let ingredientLookupNames = ingredientLookupCandidates(for: importedIngredient.name)
-        let matchedUnit = unit(for: importedIngredient.unitText, in: units)
 
         for lookupName in ingredientLookupNames {
             if let ingredient = ingredientsByName[lookupName] {
-                if ingredient.unit == nil, let matchedUnit {
-                    ingredient.unit = matchedUnit
-                }
-
                 return ingredient
             }
         }
 
         let ingredient = Ingredient(
-            name: titleCased(importedIngredient.name),
-            defaultQuantity: importedIngredient.quantity ?? 1,
-            unit: matchedUnit
+            name: titleCased(importedIngredient.name)
         )
         modelContext.insert(ingredient)
         ingredientsByName[ingredient.normalizedName] = ingredient

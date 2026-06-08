@@ -27,27 +27,19 @@ struct PreviewData {
 
         let chicken = Ingredient(
             name: "Chicken thigh",
-            defaultQuantity: 500,
-            category: meat,
-            unit: gram
+            category: meat
         )
         let broccoli = Ingredient(
             name: "Broccoli",
-            defaultQuantity: 1,
-            category: produce,
-            unit: each
+            category: produce
         )
         let lemon = Ingredient(
             name: "Lemon",
-            defaultQuantity: 1,
-            category: produce,
-            unit: each
+            category: produce
         )
         let rice = Ingredient(
             name: "Basmati rice",
-            defaultQuantity: 300,
-            category: pantry,
-            unit: gram
+            category: pantry
         )
 
         let lemonChicken = Recipe(
@@ -59,10 +51,10 @@ struct PreviewData {
             externalURL: URL(string: "https://example.com/lemon-chicken-with-rice"),
             mealType: dinner
         )
-        Self.add(chicken, quantity: 500, to: lemonChicken, in: modelContext)
-        Self.add(lemon, quantity: 1, to: lemonChicken, in: modelContext)
-        Self.add(broccoli, quantity: 1, to: lemonChicken, in: modelContext)
-        Self.add(rice, quantity: 300, to: lemonChicken, in: modelContext)
+        Self.add(chicken, quantity: 500, unit: gram, to: lemonChicken, in: modelContext)
+        Self.add(lemon, quantity: 1, unit: each, to: lemonChicken, in: modelContext)
+        Self.add(broccoli, quantity: 1, unit: each, to: lemonChicken, in: modelContext)
+        Self.add(rice, quantity: 300, unit: gram, to: lemonChicken, in: modelContext)
 
         let broccoliRice = Recipe(
             name: "Broccoli Rice Bowl",
@@ -72,8 +64,8 @@ struct PreviewData {
             rating: 5,
             mealType: lunch
         )
-        Self.add(broccoli, quantity: 2, to: broccoliRice, in: modelContext)
-        Self.add(rice, quantity: 250, to: broccoliRice, in: modelContext)
+        Self.add(broccoli, quantity: 2, unit: each, to: broccoliRice, in: modelContext)
+        Self.add(rice, quantity: 250, unit: gram, to: broccoliRice, in: modelContext)
 
         let weekStarting = Calendar.current.startOfWeek(containing: Date())
         let weekPlan = WeekPlan(weekStarting: weekStarting)
@@ -108,13 +100,15 @@ struct PreviewData {
     private static func add(
         _ ingredient: Ingredient,
         quantity: Double,
+        unit: MeasurementUnit,
         to recipe: Recipe,
         in modelContext: ModelContext
     ) {
         let line = RecipeIngredient(
             quantity: quantity,
             sortOrder: recipe.ingredientLines?.count ?? 0,
-            ingredient: ingredient
+            ingredient: ingredient,
+            unit: unit
         )
         recipe.ingredientLines = (recipe.ingredientLines ?? []) + [line]
         modelContext.insert(line)

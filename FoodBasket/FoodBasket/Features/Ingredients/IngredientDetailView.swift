@@ -17,12 +17,8 @@ struct IngredientDetailView: View {
     @Bindable var ingredient: Ingredient
     let recipeIngredientLine: RecipeIngredient?
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
-    @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
     @State private var newCategoryName = ""
-    @State private var newUnitName = ""
-    @State private var newUnitSymbol = ""
     @State private var showingNewCategoryAlert = false
-    @State private var showingNewUnitAlert = false
     @State private var isGeneratingImage = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
@@ -72,7 +68,6 @@ struct IngredientDetailView: View {
 
             if let recipeIngredientLine {
                 RecipeIngredientDetailFields(
-                    ingredient: ingredient,
                     line: recipeIngredientLine,
                     recipeName: recipeIngredientLine.recipe?.name
                 )
@@ -93,33 +88,6 @@ struct IngredientDetailView: View {
                 } label: {
                     Text("New Category")
                 }
-            }
-
-            Section("Unit") {
-                Picker("Unit", selection: $ingredient.unit) {
-                    Text("None").tag(nil as MeasurementUnit?)
-
-                    ForEach(units) { unit in
-                        Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
-                    }
-                }
-
-                Button {
-                    newUnitName = ""
-                    newUnitSymbol = ""
-                    showingNewUnitAlert = true
-                } label: {
-                    Text("New Unit")
-                }
-            }
-            
-            Section {
-                TextField("Default quantity", value: $ingredient.defaultQuantity, format: .number)
-                    .keyboardType(.decimalPad)
-            } header: {
-                Text("Default Amount")
-            } footer: {
-                Text("This amount will be pre-filled when adding this ingredient to a recipe. You can change this to any other amount or leave it blank to use the default.")
             }
         }
         .navigationTitle(ingredient.name)
@@ -176,17 +144,6 @@ struct IngredientDetailView: View {
 
             Button("Cancel", role: .cancel) {}
         }
-        .alert("New Unit", isPresented: $showingNewUnitAlert) {
-            TextField("Unit name", text: $newUnitName)
-            TextField("Symbol (mL, tsp)", text: $newUnitSymbol)
-
-            Button("Add") {
-                createUnitFromAlert()
-            }
-            .disabled(newUnitName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            Button("Cancel", role: .cancel) {}
-        }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker { image in
                 ingredient.photoData = image.recipePhotoData
@@ -216,29 +173,6 @@ struct IngredientDetailView: View {
         }
 
         ingredient.category = category
-        try? modelContext.save()
-    }
-
-    private func createUnitFromAlert() {
-        let normalizedName = newUnitName.normalizedLookupValue
-        guard !normalizedName.isEmpty else { return }
-
-        let unit = units.first {
-            $0.normalizedName == normalizedName
-        } ?? {
-            let trimmedName = newUnitName.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedSymbol = newUnitSymbol.trimmingCharacters(in: .whitespacesAndNewlines)
-            return MeasurementUnit(
-                name: trimmedName,
-                symbol: trimmedSymbol.isEmpty ? trimmedName : trimmedSymbol
-            )
-        }()
-
-        if unit.modelContext == nil {
-            modelContext.insert(unit)
-        }
-
-        ingredient.unit = unit
         try? modelContext.save()
     }
 
@@ -346,7 +280,7 @@ private struct IngredientRecipesView: View {
 }
 
 private struct RecipeIngredientDetailFields: View {
-    let ingredient: Ingredient
+    @Query(sort: \MeasurementUnit.name) private var units: [MeasurementUnit]
     @Bindable var line: RecipeIngredient
     let recipeName: String?
 
@@ -365,16 +299,26 @@ private struct RecipeIngredientDetailFields: View {
             TextField("Preparation instructions", text: $line.preparationMethod, axis: .vertical)
                 .textInputAutocapitalization(.sentences)
                 .lineLimit(2...4)
+            
+            Picker("Unit", selection: $line.unit) {
+                Text("None").tag(nil as MeasurementUnit?)
+
+                ForEach(units) { unit in
+                    Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
+                }
+            }
+            
             HStack {
                 TextField("Amount", value: $line.quantity, format: .number)
                     .keyboardType(.decimalPad)
 
-                if let symbol = ingredient.unit?.symbol, !symbol.isEmpty {
+                if let symbol = line.unit?.symbol, !symbol.isEmpty {
                     Text(symbol)
                         .foregroundStyle(.secondary)
                 }
             }
 
+            
             
         } header: {
             Text(sectionTitle)

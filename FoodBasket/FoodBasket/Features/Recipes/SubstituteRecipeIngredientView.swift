@@ -99,7 +99,7 @@ struct SubstituteRecipeIngredientView: View {
 private extension RecipeIngredient {
     var formattedSubstitutionDetails: String {
         let quantityText = quantity.formatted(.number.precision(.fractionLength(0...2)))
-        let unitText = ingredient?.unit?.symbol ?? ""
+        let unitText = unit?.symbol ?? ""
         let amountText = unitText.isEmpty ? quantityText : "\(quantityText) \(unitText)"
         let trimmedPreparationMethod = preparationMethod.trimmingCharacters(in: .whitespacesAndNewlines)
 
