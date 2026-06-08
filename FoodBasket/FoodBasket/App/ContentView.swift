@@ -5,11 +5,13 @@
 //  Created by Logan Janssen | Codify on 31/5/2026.
 //
 
+import CoreSpotlight
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @State private var selectedTab = FoodBasketTab.recipes
     @State private var selectedWeekPlanMode = WeekPlanDisplayMode.list
     @State private var highlightedThisWeekPortionIDs: Set<UUID> = []
@@ -64,15 +66,37 @@ struct ContentView: View {
         .fontDesign(.rounded)
         .dismissKeyboardOnTapOutsideTextInputs()
         .onOpenURL(perform: openDeepLink)
+        .onContinueUserActivity(CSSearchableItemActionType, perform: openSpotlightResult)
         .task {
             SeedData.ensureDefaults(in: modelContext)
             await WeekPlanAutomation.runLaunchMaintenance(in: modelContext)
+            RecipeSpotlightIndexer.scheduleReindexing(recipes: recipes)
         }
+        .onChange(of: recipeSpotlightSnapshots) { _, _ in
+            RecipeSpotlightIndexer.scheduleReindexing(recipes: recipes)
+        }
+    }
+
+    private var recipeSpotlightSnapshots: [RecipeSpotlightSnapshot] {
+        recipes.map(RecipeSpotlightSnapshot.init(recipe:))
     }
 
     private func openDeepLink(_ url: URL) {
         guard let deepLink = FoodBasketDeepLink(url: url) else { return }
 
+        openDeepLink(deepLink)
+    }
+
+    private func openSpotlightResult(_ userActivity: NSUserActivity) {
+        guard let searchableItemUniqueIdentifier = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+              let recipeID = RecipeSpotlightIndexer.recipeID(from: searchableItemUniqueIdentifier) else {
+            return
+        }
+
+        openDeepLink(.recipe(recipeID))
+    }
+
+    private func openDeepLink(_ deepLink: FoodBasketDeepLink) {
         switch deepLink {
         case .recipe(let recipeID):
             selectedTab = .recipes
