@@ -150,7 +150,7 @@ struct IngredientDetailView: View {
                         if isGeneratingImage {
                             ProgressView()
                         } else {
-                            Label("Regenerate Image", systemImage: "wand.and.sparkles")
+                            Label("Regenerate Image", image: "custom.photo.badge.sparkles")
                         }
                     }
                     .disabled(isGeneratingImage)

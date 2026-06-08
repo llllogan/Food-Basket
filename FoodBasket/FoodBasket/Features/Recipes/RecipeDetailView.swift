@@ -462,7 +462,7 @@ struct RecipeDetailView: View {
 
     private var groceryListButtonLabel: some View {
         HStack(spacing: 8) {
-            Image(systemName: "refrigerator")
+            Image("custom.refrigerator.badge.plus")
                 .font(.subheadline)
             Text("Have this week")
         }
@@ -504,7 +504,7 @@ struct RecipeDetailView: View {
         Button {
             addToThisWeek()
         } label: {
-            Label("Add to This Week", systemImage: "refrigerator")
+            Label("Add to This Week", image: "custom.refrigerator.badge.plus")
         }
         .disabled(isUpdatingReminders)
     }
