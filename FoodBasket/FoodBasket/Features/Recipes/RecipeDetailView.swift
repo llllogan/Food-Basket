@@ -22,6 +22,7 @@ struct RecipeDetailView: View {
     let recipe: Recipe
     let onOpenThisWeekCalendar: (Set<UUID>) -> Void
     @State private var showingAddIngredient = false
+    @State private var showingAddMethod = false
     @State private var showingEditRecipe = false
     @State private var showingCamera = false
     @State private var substitutedIngredientLine: RecipeIngredient?
@@ -46,6 +47,10 @@ struct RecipeDetailView: View {
 
     private var ingredientLines: [RecipeIngredient] {
         (recipe.ingredientLines ?? []).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var hasMethod: Bool {
+        !recipe.method.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var shoppingListLines: [ShoppingListLine] {
@@ -168,6 +173,11 @@ struct RecipeDetailView: View {
             .sheet(isPresented: $showingAddIngredient) {
                 NavigationStack {
                     AddIngredientToRecipeView(recipe: recipe)
+                }
+            }
+            .sheet(isPresented: $showingAddMethod) {
+                NavigationStack {
+                    RecipeMethodEditorView(recipe: recipe)
                 }
             }
             .sheet(isPresented: $showingReminderListPicker) {
@@ -319,8 +329,11 @@ struct RecipeDetailView: View {
     private var ingredientsSection: some View {
         Section("Ingredients") {
             if ingredientLines.isEmpty {
-                Text("No ingredients yet.")
-                    .foregroundStyle(.secondary)
+                recipeDetailCTAButton(
+                    title: "Add Ingredient"
+                ) {
+                    showingAddIngredient = true
+                }
             } else {
                 ForEach(ingredientLines) { line in
                     ingredientLineRow(for: line)
@@ -334,9 +347,27 @@ struct RecipeDetailView: View {
 
     private var methodSection: some View {
         Section("Method") {
-            Text(recipe.method.isEmpty ? "No method added." : recipe.method)
-                .foregroundStyle(recipe.method.isEmpty ? .secondary : .primary)
+            if hasMethod {
+                Text(recipe.method)
+            } else {
+                recipeDetailCTAButton(
+                    title: "Add Method"
+                ) {
+                    showingAddMethod = true
+                }
+            }
         }
+    }
+
+    private func recipeDetailCTAButton(
+        title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+        }
+        .buttonStyle(.borderless)
+//        .controlSize(.large)
     }
     
     private var URLSnapshotSection: some View {
@@ -1060,6 +1091,49 @@ private struct RecipeLinkPreview: UIViewRepresentable {
     }
 }
 
+private struct RecipeMethodEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    let recipe: Recipe
+    @State private var method: String
+
+    init(recipe: Recipe) {
+        self.recipe = recipe
+        _method = State(initialValue: recipe.method)
+    }
+
+    var body: some View {
+        Form {
+            Section("Method") {
+                TextEditor(text: $method)
+                    .frame(minHeight: 220)
+            }
+        }
+        .navigationTitle("Add Method")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    save()
+                }
+                .disabled(method.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    private func save() {
+        recipe.method = method.trimmingCharacters(in: .whitespacesAndNewlines)
+        try? modelContext.save()
+        dismiss()
+    }
+}
+
 private enum RecipeDetailAlert: Identifiable {
     case cameraUnavailable
     case duplicateThisWeekUpdate(ThisWeekDuplicateUpdate)
@@ -1111,6 +1185,22 @@ private extension RecipeIngredient {
 
     NavigationStack {
         RecipeDetailView(recipe: previewData.recipe)
+    }
+    .modelContainer(previewData.container)
+}
+
+#Preview("Empty Recipe Detail") {
+    let previewData = PreviewData()
+    let recipe = Recipe(
+        name: "Manual Recipe",
+        cookingTimeMinutes: 0,
+        serves: 0
+    )
+    previewData.container.mainContext.insert(recipe)
+    try? previewData.container.mainContext.save()
+
+    return NavigationStack {
+        RecipeDetailView(recipe: recipe)
     }
     .modelContainer(previewData.container)
 }

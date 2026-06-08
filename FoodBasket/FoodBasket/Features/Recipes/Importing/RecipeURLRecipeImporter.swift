@@ -26,6 +26,9 @@ enum RecipeURLRecipeImporter {
                 ingredientsByName[ingredient.normalizedName] = ingredient
             }
         }
+        for ingredient in ingredients {
+            cacheIngredientPluralLookupNames(for: ingredient, in: &ingredientsByName)
+        }
 
         let recipe = Recipe(
             name: recipeName(from: importedRecipe, sourceURL: url),
@@ -66,15 +69,17 @@ enum RecipeURLRecipeImporter {
         units: [MeasurementUnit],
         in modelContext: ModelContext
     ) -> Ingredient {
-        let normalizedIngredientName = importedIngredient.name.normalizedLookupValue
+        let ingredientLookupNames = ingredientLookupCandidates(for: importedIngredient.name)
         let matchedUnit = unit(for: importedIngredient.unitText, in: units)
 
-        if let ingredient = ingredientsByName[normalizedIngredientName] {
-            if ingredient.unit == nil, let matchedUnit {
-                ingredient.unit = matchedUnit
-            }
+        for lookupName in ingredientLookupNames {
+            if let ingredient = ingredientsByName[lookupName] {
+                if ingredient.unit == nil, let matchedUnit {
+                    ingredient.unit = matchedUnit
+                }
 
-            return ingredient
+                return ingredient
+            }
         }
 
         let ingredient = Ingredient(
@@ -84,7 +89,30 @@ enum RecipeURLRecipeImporter {
         )
         modelContext.insert(ingredient)
         ingredientsByName[ingredient.normalizedName] = ingredient
+        cacheIngredientPluralLookupNames(for: ingredient, in: &ingredientsByName)
         return ingredient
+    }
+
+    private static func ingredientLookupCandidates(for name: String) -> [String] {
+        let normalizedName = name.normalizedLookupValue
+        guard !normalizedName.isEmpty else { return [] }
+
+        var candidates = [normalizedName]
+        if normalizedName.hasSuffix("s") {
+            candidates.append(String(normalizedName.dropLast()))
+        }
+
+        return candidates
+    }
+
+    private static func cacheIngredientPluralLookupNames(
+        for ingredient: Ingredient,
+        in ingredientsByName: inout [String: Ingredient]
+    ) {
+        for lookupName in ingredientLookupCandidates(for: ingredient.normalizedName).dropFirst()
+        where ingredientsByName[lookupName] == nil {
+            ingredientsByName[lookupName] = ingredient
+        }
     }
 
     private static func unit(for unitText: String?, in units: [MeasurementUnit]) -> MeasurementUnit? {
