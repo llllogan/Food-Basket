@@ -382,6 +382,7 @@ enum RecipeURLIngredientImporter {
 
 enum RecipeIngredientLineParser {
     private nonisolated static let supportedUnits = [
+        "each", "ea",
         "tablespoons", "tablespoon", "tbsp", "tbsps", "tbsp.",
         "teaspoons", "teaspoon", "tsp", "tsps", "tsp.",
         "cups", "cup",
@@ -407,6 +408,15 @@ enum RecipeIngredientLineParser {
         "heads", "head",
         "stalks", "stalk",
         "bottles", "bottle",
+        "bags", "bag",
+        "boxes", "box",
+        "tins", "tin",
+        "containers", "container",
+        "cartons", "carton",
+        "sheets", "sheet",
+        "wedges", "wedge",
+        "blocks", "block",
+        "drops", "drop",
         "handfuls", "handful"
     ]
 
