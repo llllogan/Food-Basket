@@ -70,19 +70,22 @@ final class PlannedMealPortion {
     var sortOrder: Int = 0
     var weekPlan: WeekPlan?
     var plannedMeal: PlannedMeal?
+    var mealType: MealType?
 
     init(
         id: UUID = UUID(),
         dayOffset: Int = 0,
         sortOrder: Int = 0,
         weekPlan: WeekPlan? = nil,
-        plannedMeal: PlannedMeal? = nil
+        plannedMeal: PlannedMeal? = nil,
+        mealType: MealType? = nil
     ) {
         self.id = id
         self.dayOffset = dayOffset
         self.sortOrder = sortOrder
         self.weekPlan = weekPlan
         self.plannedMeal = plannedMeal
+        self.mealType = mealType
     }
 }
 

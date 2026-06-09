@@ -62,15 +62,20 @@ final class MealType {
     @Relationship(deleteRule: .nullify, inverse: \Recipe.mealType)
     var recipes: [Recipe]? = []
 
+    @Relationship(deleteRule: .nullify, inverse: \PlannedMealPortion.mealType)
+    var plannedMealPortions: [PlannedMealPortion]? = []
+
     init(
         id: UUID = UUID(),
         name: String,
-        recipes: [Recipe]? = []
+        recipes: [Recipe]? = [],
+        plannedMealPortions: [PlannedMealPortion]? = []
     ) {
         self.id = id
         self.name = name
         self.normalizedName = name.normalizedLookupValue
         self.recipes = recipes
+        self.plannedMealPortions = plannedMealPortions
     }
 }
 

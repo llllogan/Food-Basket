@@ -13,6 +13,7 @@ struct WeekPlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
+    @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Query(sort: [
         SortDescriptor(\PlannedMealPortion.dayOffset),
         SortDescriptor(\PlannedMealPortion.sortOrder),
@@ -33,6 +34,7 @@ struct WeekPlanView: View {
     @State private var isShowingReminderExportTipRow = false
     @State private var reminderExportTipVisibleSince: Date?
     @State private var exportAlert: ReminderExportAlert?
+    @State private var mealTypeAssignment: WeekPlanMealTypeAssignment?
     private let forceReminderExportTipRow: Bool
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
@@ -208,7 +210,7 @@ struct WeekPlanView: View {
             "\(weekStartDay)",
             currentPlanPortions
                 .map {
-                    "\($0.id.uuidString):\($0.dayOffset):\($0.sortOrder):\($0.plannedMeal?.id.uuidString ?? ""):\($0.plannedMeal?.recipe?.id.uuidString ?? "")"
+                    "\($0.id.uuidString):\($0.dayOffset):\($0.sortOrder):\($0.plannedMeal?.id.uuidString ?? ""):\($0.plannedMeal?.recipe?.id.uuidString ?? ""):\(($0.mealType ?? $0.plannedMeal?.recipe?.mealType)?.id.uuidString ?? "")"
                 }
                 .joined(separator: "|"),
         ].joined(separator: "#")
@@ -313,6 +315,18 @@ struct WeekPlanView: View {
                         options: reminderLists
                     ) { list in
                         addReminders(to: list)
+                    }
+                }
+            }
+            .sheet(item: $mealTypeAssignment) { assignment in
+                NavigationStack {
+                    WeekPlanMealTypeSelectionView(
+                        assignment: assignment,
+                        mealTypes: mealTypes,
+                        selectedMealTypeID: mealTypeID(for: assignment.portionIDs)
+                    ) { mealType in
+                        assignMealType(mealType, toPortionsWithIDs: assignment.portionIDs)
+                        mealTypeAssignment = nil
                     }
                 }
             }
@@ -479,8 +493,14 @@ struct WeekPlanView: View {
                         } label: {
                             plannedMealRow(for: row)
                         }
+                        .swipeActions(edge: .leading) {
+                            mealTypeSwipeButton(for: row)
+                        }
                     } else {
                         plannedMealRow(for: row)
+                            .swipeActions(edge: .leading) {
+                                mealTypeSwipeButton(for: row)
+                            }
                     }
                 }
                 .onDelete { offsets in
@@ -507,13 +527,17 @@ struct WeekPlanView: View {
             guard let plannedMeal = portion.plannedMeal else { continue }
 
             let recipe = plannedMeal.recipe
-            let rowKey = recipe
-                .map { "recipe:\($0.id.uuidString)" } ??
-                "meal:\(plannedMeal.id.uuidString)"
+            let effectiveMealType = portion.mealType ?? recipe?.mealType
+            let mealTypeKey = effectiveMealType.map { "mealType:\($0.id.uuidString)" } ?? "mealType:none"
+            let rowKey = [
+                recipe.map { "recipe:\($0.id.uuidString)" } ?? "meal:\(plannedMeal.id.uuidString)",
+                mealTypeKey,
+            ].joined(separator: "|")
 
             if let existingIndex = rows.firstIndex(where: { $0.groupKey == rowKey }) {
                 rows[existingIndex].portionCount += 1
                 rows[existingIndex].plannedMealIDs.insert(plannedMeal.id)
+                rows[existingIndex].portionIDs.insert(portion.id)
             } else {
                 rows.append(
                     WeekPlanMealDayRow(
@@ -521,8 +545,10 @@ struct WeekPlanView: View {
                         groupKey: rowKey,
                         recipe: recipe,
                         title: recipe?.name ?? "Deleted recipe",
+                        mealTypeName: effectiveMealType?.name,
                         portionCount: 1,
                         plannedMealIDs: [plannedMeal.id],
+                        portionIDs: [portion.id],
                         firstSortIndex: index
                     )
                 )
@@ -540,13 +566,42 @@ struct WeekPlanView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(row.title)
-                Text(row.portionCountText)
+                Text(row.subtitleText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
         }
+    }
+
+    private func mealTypeSwipeButton(for row: WeekPlanMealDayRow) -> some View {
+        Button {
+            mealTypeAssignment = WeekPlanMealTypeAssignment(
+                rowTitle: row.title,
+                portionIDs: row.portionIDs
+            )
+        } label: {
+            Label("Meal Type", systemImage: "fork.knife")
+        }
+        .tint(.orange)
+    }
+
+    private func mealTypeID(for portionIDs: Set<UUID>) -> UUID? {
+        let selectedPortions = currentPlanPortions.filter { portionIDs.contains($0.id) }
+        let mealTypeIDs = Set(selectedPortions.compactMap { portion in
+            (portion.mealType ?? portion.plannedMeal?.recipe?.mealType)?.id
+        })
+
+        return mealTypeIDs.count == 1 ? mealTypeIDs.first : nil
+    }
+
+    private func assignMealType(_ mealType: MealType?, toPortionsWithIDs portionIDs: Set<UUID>) {
+        for portion in currentPlanPortions where portionIDs.contains(portion.id) {
+            portion.mealType = mealType
+        }
+
+        try? modelContext.save()
     }
 
     private func deleteMealRows(_ rows: [WeekPlanMealDayRow], at offsets: IndexSet) {
@@ -930,7 +985,7 @@ struct WeekPlanView: View {
     }
 
     private func isIncludedInCalendarView(_ portion: PlannedMealPortion) -> Bool {
-        guard let mealTypeID = portion.plannedMeal?.recipe?.mealType?.id else {
+        guard let mealTypeID = (portion.mealType ?? portion.plannedMeal?.recipe?.mealType)?.id else {
             return !excludeCalendarMealsWithoutMealType
         }
 
@@ -1269,17 +1324,95 @@ private struct WeekPlanMealDaySection: Identifiable {
     }
 }
 
+private struct WeekPlanMealTypeAssignment: Identifiable {
+    let rowTitle: String
+    let portionIDs: Set<UUID>
+
+    var id: String {
+        portionIDs
+            .map(\.uuidString)
+            .sorted()
+            .joined(separator: ",")
+    }
+}
+
 private struct WeekPlanMealDayRow: Identifiable {
     let id: String
     let groupKey: String
     let recipe: Recipe?
     let title: String
+    let mealTypeName: String?
     var portionCount: Int
     var plannedMealIDs: Set<UUID>
+    var portionIDs: Set<UUID>
     let firstSortIndex: Int
 
     var portionCountText: String {
         "\(portionCount) \(portionCount == 1 ? "portion" : "portions")"
+    }
+
+    var subtitleText: String {
+        guard let mealTypeName, !mealTypeName.isEmpty else {
+            return portionCountText
+        }
+
+        return "\(mealTypeName) | \(portionCountText)"
+    }
+}
+
+private struct WeekPlanMealTypeSelectionView: View {
+    let assignment: WeekPlanMealTypeAssignment
+    let mealTypes: [MealType]
+    let selectedMealTypeID: UUID?
+    let onSelect: (MealType?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            Section(assignment.rowTitle) {
+                Button {
+                    onSelect(nil)
+                    dismiss()
+                } label: {
+                    mealTypeRow(title: "None", isSelected: selectedMealTypeID == nil)
+                }
+
+                ForEach(mealTypes) { mealType in
+                    Button {
+                        onSelect(mealType)
+                        dismiss()
+                    } label: {
+                        mealTypeRow(
+                            title: mealType.name,
+                            isSelected: selectedMealTypeID == mealType.id
+                        )
+                    }
+                }
+            }
+        }
+        .navigationTitle("Meal Type")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func mealTypeRow(title: String, isSelected: Bool) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(.primary)
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.tint)
+            }
+        }
     }
 }
 
