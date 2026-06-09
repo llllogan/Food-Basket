@@ -50,6 +50,15 @@ struct RecipesView: View {
         return URL(string: "https://\(trimmedURL)")
     }
 
+    private var selectedMealTypeFilterTitle: String {
+        guard let selectedMealTypeFilterID,
+              let selectedMealType = mealTypes.first(where: { $0.id == selectedMealTypeFilterID }) else {
+            return "All"
+        }
+
+        return selectedMealType.name
+    }
+
     private var filteredRecipes: [Recipe] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let searchMatchedRecipes: [Recipe]
@@ -215,58 +224,25 @@ struct RecipesView: View {
         EdgeInsets(top: 56, leading: 20, bottom: 56, trailing: 20)
     }
 
-    @ViewBuilder
-    private func mealTypeFilterMenuLabel(_ title: String, isSelected: Bool) -> some View {
-        if isSelected {
-            Label(title, systemImage: "checkmark")
-        } else {
-            Text(title)
-        }
-    }
-
     private var filterAndSortMenu: some View {
         Menu {
             Section("Filter") {
-                Button {
-                    selectedMealTypeFilterID = nil
-                } label: {
-                    mealTypeFilterMenuLabel(
-                        "All",
-                        isSelected: selectedMealTypeFilterID == nil
-                    )
-                }
+                Picker(selectedMealTypeFilterTitle, selection: $selectedMealTypeFilterID) {
+                    Text("All").tag(nil as UUID?)
 
-                ForEach(mealTypes) { mealType in
-                    Button {
-                        selectedMealTypeFilterID = mealType.id
-                    } label: {
-                        mealTypeFilterMenuLabel(
-                            mealType.name,
-                            isSelected: selectedMealTypeFilterID == mealType.id
-                        )
+                    ForEach(mealTypes) { mealType in
+                        Text(mealType.name).tag(Optional(mealType.id))
                     }
                 }
-
+                .pickerStyle(.menu)
             }
             
-            Section("Sort") {
-                Button {
-                    sortMode = .name
-                } label: {
-                    sortMenuLabel(
-                        "by Name",
-                        isSelected: sortMode == .name
-                    )
+            Section("Order") {
+                Picker(sortMode.title, selection: $sortMode) {
+                    Text("by Name").tag(RecipeListSortMode.name)
+                    Text("by Rating").tag(RecipeListSortMode.rating)
                 }
-
-                Button {
-                    sortMode = .rating
-                } label: {
-                    sortMenuLabel(
-                        "by Rating",
-                        isSelected: sortMode == .rating
-                    )
-                }
+                .pickerStyle(.menu)
             }
 
         } label: {
@@ -276,15 +252,6 @@ struct RecipesView: View {
                     ? "line.3.horizontal.decrease.circle"
                     : "line.3.horizontal.decrease.circle.fill"
             )
-        }
-    }
-
-    @ViewBuilder
-    private func sortMenuLabel(_ title: String, isSelected: Bool) -> some View {
-        if isSelected {
-            Label(title, systemImage: "checkmark")
-        } else {
-            Text(title)
         }
     }
 
@@ -376,9 +343,18 @@ struct RecipesView: View {
     }
 }
 
-private enum RecipeListSortMode {
+private enum RecipeListSortMode: Hashable {
     case name
     case rating
+
+    var title: String {
+        switch self {
+        case .name:
+            "by Name"
+        case .rating:
+            "by Rating"
+        }
+    }
 
     func sort(_ recipes: [Recipe]) -> [Recipe] {
         switch self {

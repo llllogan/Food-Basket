@@ -89,6 +89,15 @@ struct IngredientsView: View {
         selectedCategoryFilterID != nil || recipeFilter != .all
     }
 
+    private var selectedCategoryFilterTitle: String {
+        guard let selectedCategoryFilterID,
+              let selectedCategory = categories.first(where: { $0.id == selectedCategoryFilterID }) else {
+            return "All"
+        }
+
+        return selectedCategory.name
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -184,74 +193,37 @@ struct IngredientsView: View {
     private var ingredientFilterMenu: some View {
         Menu {
             Section("Organise") {
-                Button {
-                    organiseMode = .name
-                } label: {
-                    filterMenuLabel(
-                        "by Name",
-                        isSelected: organiseMode == .name
+                Picker(
+                    organiseMode.title,
+                    selection: Binding(
+                        get: { organiseMode },
+                        set: { organiseMode = $0 }
                     )
+                ) {
+                    Text("by Name").tag(IngredientListOrganiseMode.name)
+                    Text("by Category").tag(IngredientListOrganiseMode.category)
                 }
-
-                Button {
-                    organiseMode = .category
-                } label: {
-                    filterMenuLabel(
-                        "by Category",
-                        isSelected: organiseMode == .category
-                    )
-                }
+                .pickerStyle(.menu)
             }
 
             Section("Recipes") {
-                Button {
-                    recipeFilter = .all
-                } label: {
-                    filterMenuLabel(
-                        "All Ingredients",
-                        isSelected: recipeFilter == .all
-                    )
+                Picker(recipeFilter.title, selection: $recipeFilter) {
+                    Text("All Ingredients").tag(IngredientRecipeFilter.all)
+                    Text("Without Recipes").tag(IngredientRecipeFilter.withoutRecipes)
+                    Text("With Recipes").tag(IngredientRecipeFilter.withRecipes)
                 }
-
-                Button {
-                    recipeFilter = .withoutRecipes
-                } label: {
-                    filterMenuLabel(
-                        "Without Recipes",
-                        isSelected: recipeFilter == .withoutRecipes
-                    )
-                }
-
-                Button {
-                    recipeFilter = .withRecipes
-                } label: {
-                    filterMenuLabel(
-                        "With Recipes",
-                        isSelected: recipeFilter == .withRecipes
-                    )
-                }
+                .pickerStyle(.menu)
             }
             
             Section("Filter") {
-                Button {
-                    selectedCategoryFilterID = nil
-                } label: {
-                    filterMenuLabel(
-                        "All",
-                        isSelected: selectedCategoryFilterID == nil
-                    )
-                }
+                Picker(selectedCategoryFilterTitle, selection: $selectedCategoryFilterID) {
+                    Text("All").tag(nil as UUID?)
 
-                ForEach(categories) { category in
-                    Button {
-                        selectedCategoryFilterID = category.id
-                    } label: {
-                        filterMenuLabel(
-                            category.name,
-                            isSelected: selectedCategoryFilterID == category.id
-                        )
+                    ForEach(categories) { category in
+                        Text(category.name).tag(Optional(category.id))
                     }
                 }
+                .pickerStyle(.menu)
             }
 
         } label: {
@@ -261,15 +233,6 @@ struct IngredientsView: View {
                     ? "line.3.horizontal.decrease.circle.fill"
                     : "line.3.horizontal.decrease.circle"
             )
-        }
-    }
-
-    @ViewBuilder
-    private func filterMenuLabel(_ title: String, isSelected: Bool) -> some View {
-        if isSelected {
-            Label(title, systemImage: "checkmark")
-        } else {
-            Text(title)
         }
     }
 
@@ -320,9 +283,18 @@ private enum IngredientListOrganiseDefaults {
     static let modeKey = "ingredientListOrganiseMode"
 }
 
-private enum IngredientListOrganiseMode: String {
+private enum IngredientListOrganiseMode: String, Hashable {
     case name
     case category
+
+    var title: String {
+        switch self {
+        case .name:
+            "by Name"
+        case .category:
+            "by Category"
+        }
+    }
 
     nonisolated static func sortedByName(_ ingredients: [Ingredient]) -> [Ingredient] {
         ingredients.sorted(by: sortByName)
@@ -339,10 +311,21 @@ private struct IngredientCategorySection: Identifiable {
     let ingredients: [Ingredient]
 }
 
-private enum IngredientRecipeFilter {
+private enum IngredientRecipeFilter: Hashable {
     case all
     case withoutRecipes
     case withRecipes
+
+    var title: String {
+        switch self {
+        case .all:
+            "All Ingredients"
+        case .withoutRecipes:
+            "Without Recipes"
+        case .withRecipes:
+            "With Recipes"
+        }
+    }
 
     func includes(_ ingredient: Ingredient) -> Bool {
         switch self {
