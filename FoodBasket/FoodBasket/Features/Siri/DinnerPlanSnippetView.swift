@@ -6,64 +6,52 @@
 //
 
 import SwiftUI
-import UIKit
 
 struct DinnerPlanSnippetView: View {
-    let recipePhotoData: [Data?]
-
-    private let columns = Array(
-        repeating: GridItem(.flexible(), spacing: 10),
-        count: 3
-    )
     private let maximumVisibleMeals = 9
+    let mealNames: [String]
 
     var body: some View {
-        Group {
-            if recipePhotoData.isEmpty {
-                DinnerPlanSnippetPhotoView(photoData: nil)
-                    .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 10) {
+            Label(
+                mealNames.isEmpty ? "No Dinners Planned" : "This Week's Dinners",
+                systemImage: "fork.knife"
+            )
+            .font(.headline)
+
+            if mealNames.isEmpty {
+                Text("Add meals in Food Basket to see them here.")
+                    .foregroundStyle(.secondary)
             } else {
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(Array(recipePhotoData.prefix(maximumVisibleMeals).enumerated()), id: \.offset) { _, photoData in
-                        DinnerPlanSnippetPhotoView(photoData: photoData)
-                    }
+                ForEach(Array(mealNames.prefix(maximumVisibleMeals).enumerated()), id: \.offset) { _, mealName in
+                    Text(mealName)
+                        .lineLimit(1)
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 12)
-    }
-}
 
-private struct DinnerPlanSnippetPhotoView: View {
-    let photoData: Data?
-
-    var body: some View {
-        Group {
-            if let image = photoData.flatMap(UIImage.init(data:)) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ZStack {
-                    Color(uiColor: .secondarySystemBackground)
-
-                    Image(systemName: "fork.knife")
+                if additionalMealCount > 0 {
+                    Text("+ \(additionalMealCount) more")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .fontDesign(.rounded)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+    }
+
+    private var additionalMealCount: Int {
+        max(0, mealNames.count - maximumVisibleMeals)
     }
 }
 
 #Preview("Dinner Plan Snippet") {
     DinnerPlanSnippetView(
-        recipePhotoData: Array(repeating: nil, count: 7)
+        mealNames: [
+            "Lemon Chicken with Rice",
+            "Broccoli Rice Bowl",
+            "Tomato Pasta",
+        ]
     )
     .background(Color.orange.opacity(0.25))
     .frame(width: 360)

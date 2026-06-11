@@ -13,6 +13,18 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Food Basket adds and updates meal plan events in the calendar you choose.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Food Basket adds meal plan events to the calendar you choose.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Food Basket adds meal plan events to the calendar you choose.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Food Basket uses the camera to add photos to recipes and ingredients.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Food Basket adds grocery items to the Reminders list you choose.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Food Basket adds grocery items to the Reminders list you choose.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

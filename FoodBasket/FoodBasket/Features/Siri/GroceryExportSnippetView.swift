@@ -10,11 +10,11 @@ import SwiftUI
 
 struct GroceryExportSnippetView: View {
     let listTitle: String?
-    let lines: [ShoppingListLine]
+    let lines: [FoodBasketPlanSnapshotGroceryLine]
 
     private let maximumVisibleItems = 4
 
-    init(listTitle: String? = nil, lines: [ShoppingListLine]) {
+    init(listTitle: String? = nil, lines: [FoodBasketPlanSnapshotGroceryLine]) {
         self.listTitle = listTitle
         self.lines = lines
     }
@@ -68,44 +68,39 @@ struct GroceryExportSnippetView: View {
     GroceryExportSnippetView(
         listTitle: "Groceries",
         lines: [
-            ShoppingListLine(
+            FoodBasketPlanSnapshotGroceryLine(
                 ingredientID: UUID(),
                 ingredientName: "Basmati rice",
                 categoryName: "Pantry",
                 unitSymbol: "g",
-                photoData: nil,
                 quantity: 800
             ),
-            ShoppingListLine(
+            FoodBasketPlanSnapshotGroceryLine(
                 ingredientID: UUID(),
                 ingredientName: "Broccoli",
                 categoryName: "Produce",
                 unitSymbol: "each",
-                photoData: nil,
                 quantity: 5
             ),
-            ShoppingListLine(
+            FoodBasketPlanSnapshotGroceryLine(
                 ingredientID: UUID(),
                 ingredientName: "Chicken thigh",
                 categoryName: "Meat",
                 unitSymbol: "g",
-                photoData: nil,
                 quantity: 500
             ),
-            ShoppingListLine(
+            FoodBasketPlanSnapshotGroceryLine(
                 ingredientID: UUID(),
                 ingredientName: "Lemon",
                 categoryName: "Produce",
                 unitSymbol: "each",
-                photoData: nil,
                 quantity: 1
             ),
-            ShoppingListLine(
+            FoodBasketPlanSnapshotGroceryLine(
                 ingredientID: UUID(),
                 ingredientName: "Tomatoes",
                 categoryName: "Produce",
                 unitSymbol: "each",
-                photoData: nil,
                 quantity: 4
             ),
         ]

@@ -69,6 +69,13 @@ struct ContentView: View {
         .onContinueUserActivity(CSSearchableItemActionType, perform: openSpotlightResult)
         .task {
             SeedData.ensureDefaults(in: modelContext)
+            let removedDuplicateMealTypeCount = (try? FoodBasketDataMaintenance.deduplicateMealTypes(
+                in: modelContext
+            )) ?? 0
+            if removedDuplicateMealTypeCount > 0,
+               (try? FoodBasketPlanSnapshotStore.refresh(in: modelContext)) != nil {
+                FoodBasketWidgetTimelineReloader.reloadTimelines()
+            }
             await WeekPlanAutomation.runLaunchMaintenance(in: modelContext)
             RecipeSpotlightIndexer.scheduleReindexing(recipes: recipes)
         }

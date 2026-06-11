@@ -60,7 +60,7 @@ final class ShareViewController: UIViewController {
     private func importSharedRecipe() async {
         do {
             let url = try await sharedRecipeURL()
-            let container = FoodBasketModelContainer.make()
+            let container = try FoodBasketModelContainer.make()
             let recipe = try await RecipeURLRecipeImporter.importRecipe(
                 from: url,
                 in: container.mainContext

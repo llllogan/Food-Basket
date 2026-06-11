@@ -8,6 +8,14 @@
 import EventKit
 import Foundation
 
+protocol ReminderExportableGroceryLine {
+    var ingredientName: String { get }
+    var formattedAmount: String { get }
+}
+
+extension ShoppingListLine: ReminderExportableGroceryLine {}
+extension FoodBasketPlanSnapshotGroceryLine: ReminderExportableGroceryLine {}
+
 @MainActor
 final class RemindersExporter {
     private static let automaticallyAddedTag = "#added_automatically"
@@ -35,8 +43,8 @@ final class RemindersExporter {
             }
     }
 
-    func export(
-        _ lines: [ShoppingListLine],
+    func export<Line: ReminderExportableGroceryLine>(
+        _ lines: [Line],
         to list: ReminderListOption,
         sourceIdentifier: String? = nil
     ) async throws {
@@ -49,8 +57,8 @@ final class RemindersExporter {
         try export(lines, to: calendar, sourceIdentifier: sourceIdentifier)
     }
 
-    private func export(
-        _ lines: [ShoppingListLine],
+    private func export<Line: ReminderExportableGroceryLine>(
+        _ lines: [Line],
         to calendar: EKCalendar,
         sourceIdentifier: String?
     ) throws {

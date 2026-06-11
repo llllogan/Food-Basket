@@ -20,6 +20,8 @@ struct FoodBasketApp: App {
     #endif
 
     init() {
+        Self.migrateSharedDefaultsIfNeeded()
+
         #if DEBUG
         screenshotConfiguration = FoodBasketScreenshotConfiguration()
         if screenshotConfiguration.usesPreviewData {
@@ -44,6 +46,7 @@ struct FoodBasketApp: App {
                     IngredientEnrichmentScheduler.schedulePendingIngredientEnrichment(
                         in: sharedModelContainer.mainContext
                     )
+                    refreshPlanSnapshot()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     switch newPhase {
@@ -51,7 +54,9 @@ struct FoodBasketApp: App {
                         IngredientEnrichmentScheduler.schedulePendingIngredientEnrichment(
                             in: sharedModelContainer.mainContext
                         )
+                        refreshPlanSnapshot()
                     case .background:
+                        refreshPlanSnapshot()
                         IngredientEnrichmentScheduler.cancelPendingIngredientEnrichment()
                     case .inactive:
                         break
@@ -60,6 +65,7 @@ struct FoodBasketApp: App {
                     }
                 }
         }
+        .defaultAppStorage(FoodBasketSharedContainer.userDefaults)
         .modelContainer(sharedModelContainer)
     }
 
@@ -74,6 +80,33 @@ struct FoodBasketApp: App {
         #else
         ContentView()
         #endif
+    }
+
+    private static func migrateSharedDefaultsIfNeeded() {
+        FoodBasketSharedContainer.migrateLegacyDefaultsIfNeeded(keys: [
+            CalendarListDefaults.idKey,
+            CalendarListDefaults.nameKey,
+            CalendarListDefaults.sourceTitleKey,
+            CalendarSyncDefaults.isEnabledKey,
+            CalendarSyncDefaults.calendarIDKey,
+            CalendarSyncDefaults.calendarNameKey,
+            CalendarSyncDefaults.calendarSourceTitleKey,
+            ReminderListDefaults.idKey,
+            ReminderListDefaults.nameKey,
+            "calendarViewExcludedMealTypeIDs",
+            "calendarViewExcludeMealsWithoutMealType",
+            "isGroceryListReminderExportTipComplete",
+            "groceryListReminderExportTipVisibleSeconds",
+            "removeMealsAtStartOfNewWeek",
+            "mealCleanupWeekStartDay",
+            "ingredientListOrganiseMode",
+        ])
+    }
+
+    private func refreshPlanSnapshot() {
+        if (try? FoodBasketPlanSnapshotStore.refresh(in: sharedModelContainer.mainContext)) != nil {
+            FoodBasketWidgetTimelineReloader.reloadTimelines()
+        }
     }
 }
 

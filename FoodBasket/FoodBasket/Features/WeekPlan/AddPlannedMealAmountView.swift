@@ -67,6 +67,8 @@ struct AddPlannedMealAmountView: View {
         }
 
         try? modelContext.save()
+        try? FoodBasketPlanSnapshotStore.refresh(in: modelContext)
+        FoodBasketWidgetTimelineReloader.reloadTimelines()
         onAdd()
     }
 

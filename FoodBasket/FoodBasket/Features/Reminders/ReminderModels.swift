@@ -26,9 +26,8 @@ enum ReminderListDefaults {
     static let nameKey = "lastRemindersListName"
 
     static var rememberedList: ReminderListOption? {
-        let defaults = UserDefaults.standard
-        let id = defaults.string(forKey: idKey) ?? ""
-        let name = defaults.string(forKey: nameKey) ?? ""
+        let id = FoodBasketSharedContainer.string(forKey: idKey) ?? ""
+        let name = FoodBasketSharedContainer.string(forKey: nameKey) ?? ""
 
         guard !id.isEmpty, !name.isEmpty else { return nil }
 

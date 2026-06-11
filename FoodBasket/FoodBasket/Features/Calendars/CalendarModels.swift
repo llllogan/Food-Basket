@@ -21,10 +21,9 @@ enum CalendarListDefaults {
     static let sourceTitleKey = "lastCalendarSourceTitle"
 
     static var rememberedCalendar: CalendarListOption? {
-        let defaults = UserDefaults.standard
-        let id = defaults.string(forKey: idKey) ?? ""
-        let name = defaults.string(forKey: nameKey) ?? ""
-        let sourceTitle = defaults.string(forKey: sourceTitleKey) ?? ""
+        let id = FoodBasketSharedContainer.string(forKey: idKey) ?? ""
+        let name = FoodBasketSharedContainer.string(forKey: nameKey) ?? ""
+        let sourceTitle = FoodBasketSharedContainer.string(forKey: sourceTitleKey) ?? ""
 
         guard !id.isEmpty, !name.isEmpty else { return nil }
 
@@ -43,10 +42,9 @@ enum CalendarSyncDefaults {
     static let calendarSourceTitleKey = "syncCalendarSourceTitle"
 
     static var selectedCalendar: CalendarListOption? {
-        let defaults = UserDefaults.standard
-        let id = defaults.string(forKey: calendarIDKey) ?? ""
-        let name = defaults.string(forKey: calendarNameKey) ?? ""
-        let sourceTitle = defaults.string(forKey: calendarSourceTitleKey) ?? ""
+        let id = FoodBasketSharedContainer.string(forKey: calendarIDKey) ?? ""
+        let name = FoodBasketSharedContainer.string(forKey: calendarNameKey) ?? ""
+        let sourceTitle = FoodBasketSharedContainer.string(forKey: calendarSourceTitleKey) ?? ""
 
         guard !id.isEmpty, !name.isEmpty else { return nil }
 
@@ -58,14 +56,14 @@ enum CalendarSyncDefaults {
     }
 
     static func remember(_ calendar: CalendarListOption) {
-        let defaults = UserDefaults.standard
+        let defaults = FoodBasketSharedContainer.userDefaults
         defaults.set(calendar.id, forKey: calendarIDKey)
         defaults.set(calendar.title, forKey: calendarNameKey)
         defaults.set(calendar.sourceTitle, forKey: calendarSourceTitleKey)
     }
 
     static func forgetSelectedCalendar() {
-        let defaults = UserDefaults.standard
+        let defaults = FoodBasketSharedContainer.userDefaults
         defaults.set("", forKey: calendarIDKey)
         defaults.set("", forKey: calendarNameKey)
         defaults.set("", forKey: calendarSourceTitleKey)

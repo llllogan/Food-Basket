@@ -10,37 +10,49 @@ import SwiftData
 
 @MainActor
 struct CurrentWeekPlanReader {
-    private let modelContext: ModelContext
+    private let modelContainer: ModelContainer?
 
     init(modelContainer: ModelContainer? = nil) {
-        modelContext = (modelContainer ?? FoodBasketModelContainer.shared).mainContext
+        self.modelContainer = modelContainer
     }
 
     func dinnerPlan() throws -> DinnerPlanResult {
-        let recipes = (try currentPlan()?.plannedMeals ?? [])
-            .sorted { $0.sortOrder < $1.sortOrder }
-            .compactMap(\.recipe)
+        let snapshot = try currentSnapshot()
         return DinnerPlanResult(
-            mealNames: recipes.map(\.name),
-            recipePhotoData: recipes.map(\.photoData)
+            mealNames: snapshot.dinnerMealNames
         )
     }
 
-    func shoppingListLines() throws -> [ShoppingListLine] {
-        ShoppingListLine.makeLines(for: try currentPlan())
+    func shoppingListLines() throws -> [FoodBasketPlanSnapshotGroceryLine] {
+        try currentSnapshot().groceryLines
     }
 
-    private func currentPlan() throws -> WeekPlan? {
-        let weekStarting = Calendar.current.startOfWeek(containing: Date())
-        return try modelContext.fetch(FetchDescriptor<WeekPlan>()).first {
-            Calendar.current.isDate($0.weekStarting, inSameDayAs: weekStarting)
+    func currentSnapshot() throws -> FoodBasketPlanSnapshot {
+        let existingSnapshot = FoodBasketPlanSnapshotStore.loadCurrentWeek()
+
+        do {
+            let container = try modelContainer ?? FoodBasketModelContainer.make()
+            let refreshedSnapshot = try FoodBasketPlanSnapshotStore.refresh(in: container.mainContext)
+
+            if refreshedSnapshot.dinnerMealNames.isEmpty,
+               let existingSnapshot,
+               !existingSnapshot.dinnerMealNames.isEmpty {
+                return existingSnapshot
+            }
+
+            return refreshedSnapshot
+        } catch {
+            if let existingSnapshot {
+                return existingSnapshot
+            }
+
+            throw error
         }
     }
 }
 
 struct DinnerPlanResult {
     let mealNames: [String]
-    let recipePhotoData: [Data?]
 
     var summary: String {
         guard !mealNames.isEmpty else {

@@ -17,7 +17,7 @@ struct GetDinnerPlanIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog & ShowsSnippetView {
         let dinnerPlan = try CurrentWeekPlanReader().dinnerPlan()
         return .result(value: dinnerPlan.summary, dialog: "\(dinnerPlan.summary)") {
-            DinnerPlanSnippetView(recipePhotoData: dinnerPlan.recipePhotoData)
+            DinnerPlanSnippetView(mealNames: dinnerPlan.mealNames)
         }
     }
 }

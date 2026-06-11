@@ -1198,11 +1198,15 @@ enum WeekStartDay: Int, CaseIterable, Identifiable {
     }
 
     static func foodBasketCalendarStartDay(
-        from defaults: UserDefaults = .standard
+        from defaults: UserDefaults = FoodBasketSharedContainer.userDefaults
     ) -> WeekStartDay {
         foodBasketCalendarStartDay(
-            removeMealsAtNewWeek: defaults.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey),
-            rawValue: defaults.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
+            removeMealsAtNewWeek: defaults.object(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) == nil
+                ? FoodBasketSharedContainer.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey)
+                : defaults.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey),
+            rawValue: defaults.object(forKey: WeekPlanAutomationDefaults.weekStartDayKey) == nil
+                ? FoodBasketSharedContainer.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
+                : defaults.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
         )
     }
 }
@@ -1213,7 +1217,7 @@ enum WeekPlanAutomation {
         do {
             _ = try removeMealsAtStartOfNewWeekIfNeeded(in: modelContext)
 
-            guard UserDefaults.standard.bool(forKey: CalendarSyncDefaults.isEnabledKey),
+            guard FoodBasketSharedContainer.bool(forKey: CalendarSyncDefaults.isEnabledKey),
                   let selectedCalendar = CalendarSyncDefaults.selectedCalendar else {
                 return
             }
@@ -1226,14 +1230,13 @@ enum WeekPlanAutomation {
     }
 
     static func removeMealsAtStartOfNewWeekIfNeeded(in modelContext: ModelContext) throws -> Int {
-        let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) else {
+        guard FoodBasketSharedContainer.bool(forKey: WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) else {
             return 0
         }
 
         let weekStartDay = WeekStartDay.foodBasketCalendarStartDay(
             removeMealsAtNewWeek: true,
-            rawValue: defaults.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
+            rawValue: FoodBasketSharedContainer.integer(forKey: WeekPlanAutomationDefaults.weekStartDayKey)
         )
         let currentWeekStart = weekStartDay.startOfWeek(containing: Date())
 

@@ -11,9 +11,18 @@ import SwiftData
 
 @MainActor
 enum FoodBasketModelContainer {
-    static let shared = make()
+    static let shared = makeOrFallback()
 
-    static func make(isStoredInMemoryOnly: Bool = false) -> ModelContainer {
+    static func makeOrFallback(isStoredInMemoryOnly: Bool = false) -> ModelContainer {
+        do {
+            return try make(isStoredInMemoryOnly: isStoredInMemoryOnly)
+        } catch {
+            assertionFailure("Could not create ModelContainer: \(error)")
+            return makeFallbackContainer()
+        }
+    }
+
+    static func make(isStoredInMemoryOnly: Bool = false) throws -> ModelContainer {
         let schema = FoodBasketDataSchema.current
         migrateDefaultStoreToSharedContainerIfNeeded(
             schema: schema,
@@ -28,7 +37,7 @@ enum FoodBasketModelContainer {
 
         do {
             #if DEBUG
-            if !isStoredInMemoryOnly && UserDefaults.standard.bool(forKey: "InitializeCloudKitSchema") {
+            if !isStoredInMemoryOnly && FoodBasketSharedContainer.bool(forKey: "InitializeCloudKitSchema") {
                 try initializeDevelopmentCloudKitSchema(
                     schema: schema,
                     configuration: configuration
@@ -42,7 +51,7 @@ enum FoodBasketModelContainer {
                 configurations: [configuration]
             )
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            throw FoodBasketModelContainerError.containerCreationFailed(error)
         }
     }
 
@@ -59,7 +68,7 @@ enum FoodBasketModelContainer {
             description.shouldAddStoreAsynchronously = false
 
             guard let managedObjectModel = NSManagedObjectModel.makeManagedObjectModel(for: schema) else {
-                fatalError("Could not create managed object model for CloudKit schema initialization.")
+                throw FoodBasketModelContainerError.managedObjectModelUnavailable
             }
 
             let container = NSPersistentCloudKitContainer(
@@ -67,10 +76,13 @@ enum FoodBasketModelContainer {
                 managedObjectModel: managedObjectModel
             )
             container.persistentStoreDescriptions = [description]
+            var loadError: Error?
             container.loadPersistentStores { _, error in
-                if let error {
-                    fatalError("Could not load store for CloudKit schema initialization: \(error)")
-                }
+                loadError = error
+            }
+
+            if let loadError {
+                throw FoodBasketModelContainerError.cloudKitSchemaStoreLoadFailed(loadError)
             }
 
             try container.initializeCloudKitSchema()
@@ -132,19 +144,33 @@ enum FoodBasketModelContainer {
             return
         }
 
-        copyStoreFileIfPresent(from: defaultStoreURL, to: sharedStoreURL)
-        copyStoreFileIfPresent(
-            from: sqliteSidecarURL(for: defaultStoreURL, suffix: "-shm"),
-            to: sqliteSidecarURL(for: sharedStoreURL, suffix: "-shm")
-        )
-        copyStoreFileIfPresent(
-            from: sqliteSidecarURL(for: defaultStoreURL, suffix: "-wal"),
-            to: sqliteSidecarURL(for: sharedStoreURL, suffix: "-wal")
-        )
+        copyStoreRelatedFilesIfPresent(from: defaultStoreURL, to: sharedStoreURL)
     }
 
-    private static func sqliteSidecarURL(for storeURL: URL, suffix: String) -> URL {
-        URL(fileURLWithPath: storeURL.path + suffix)
+    private static func copyStoreRelatedFilesIfPresent(from sourceURL: URL, to destinationURL: URL) {
+        let sourceDirectory = sourceURL.deletingLastPathComponent()
+        let sourceStoreName = sourceURL.lastPathComponent
+        let destinationStoreName = destinationURL.lastPathComponent
+
+        guard let relatedURLs = try? FileManager.default.contentsOfDirectory(
+            at: sourceDirectory,
+            includingPropertiesForKeys: nil
+        ) else {
+            copyStoreFileIfPresent(from: sourceURL, to: destinationURL)
+            return
+        }
+
+        for relatedURL in relatedURLs
+        where relatedURL.lastPathComponent.hasPrefix(sourceStoreName) {
+            let destinationName = relatedURL.lastPathComponent.replacingPrefix(
+                sourceStoreName,
+                with: destinationStoreName
+            )
+            copyStoreFileIfPresent(
+                from: relatedURL,
+                to: destinationURL.deletingLastPathComponent().appendingPathComponent(destinationName)
+            )
+        }
     }
 
     private static func copyStoreFileIfPresent(from sourceURL: URL, to destinationURL: URL) {
@@ -163,5 +189,44 @@ enum FoodBasketModelContainer {
             // If the old local store cannot be copied, SwiftData can still create/open
             // the shared store and CloudKit can repopulate it.
         }
+    }
+
+    private static func makeFallbackContainer() -> ModelContainer {
+        let schema = FoodBasketDataSchema.current
+        let configuration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: true,
+            cloudKitDatabase: .none
+        )
+
+        do {
+            return try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            preconditionFailure("Could not create fallback ModelContainer: \(error)")
+        }
+    }
+}
+
+enum FoodBasketModelContainerError: LocalizedError {
+    case containerCreationFailed(Error)
+    case managedObjectModelUnavailable
+    case cloudKitSchemaStoreLoadFailed(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .containerCreationFailed(let error):
+            return "Could not open the Food Basket data store. \(error.localizedDescription)"
+        case .managedObjectModelUnavailable:
+            return "Could not prepare the Food Basket data model for CloudKit."
+        case .cloudKitSchemaStoreLoadFailed(let error):
+            return "Could not load the Food Basket store for CloudKit schema setup. \(error.localizedDescription)"
+        }
+    }
+}
+
+private extension String {
+    func replacingPrefix(_ prefix: String, with replacement: String) -> String {
+        guard hasPrefix(prefix) else { return self }
+        return replacement + dropFirst(prefix.count)
     }
 }

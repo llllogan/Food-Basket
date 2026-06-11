@@ -51,9 +51,15 @@ struct ShoppingListLine: Identifiable {
     static func makeLines(for plan: WeekPlan?) -> [ShoppingListLine] {
         guard let plan else { return [] }
 
+        return makeLines(
+            for: (plan.plannedMeals ?? []).sorted { $0.sortOrder < $1.sortOrder }
+        )
+    }
+
+    static func makeLines(for plannedMeals: [PlannedMeal]) -> [ShoppingListLine] {
         var linesByID: [String: ShoppingListLine] = [:]
 
-        for plannedMeal in (plan.plannedMeals ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
+        for plannedMeal in plannedMeals.sorted(by: { $0.sortOrder < $1.sortOrder }) {
             guard let recipe = plannedMeal.recipe else { continue }
             addLines(
                 from: recipe,
