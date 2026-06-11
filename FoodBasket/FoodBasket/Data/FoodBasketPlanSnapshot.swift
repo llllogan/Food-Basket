@@ -7,19 +7,22 @@
 
 import Foundation
 import SwiftData
+import UIKit
 
 struct FoodBasketPlanSnapshot: Codable, Equatable {
     var generatedAt: Date
     var weekStarting: Date
     var dinnerMealNames: [String]
     var groceryLines: [FoodBasketPlanSnapshotGroceryLine]
+    var plannedMeals: [FoodBasketPlanSnapshotPlannedMeal]
 
     static func empty(weekStarting: Date = WeekStartDay.foodBasketCalendarStartDay().startOfWeek(containing: Date())) -> FoodBasketPlanSnapshot {
         FoodBasketPlanSnapshot(
             generatedAt: Date(),
             weekStarting: weekStarting,
             dinnerMealNames: [],
-            groceryLines: []
+            groceryLines: [],
+            plannedMeals: []
         )
     }
 
@@ -30,6 +33,19 @@ struct FoodBasketPlanSnapshot: Codable, Equatable {
 
         return "This week you have \(ListFormatter.localizedString(byJoining: dinnerMealNames))."
     }
+}
+
+struct FoodBasketPlanSnapshotPlannedMeal: Codable, Equatable, Identifiable {
+    let id: UUID
+    let recipeID: UUID
+    let recipeName: String
+    let plannedDate: Date
+    let dayOffset: Int
+    let mealSortOrder: Int
+    let portionSortOrder: Int
+    let mealTypeID: UUID?
+    let mealTypeName: String?
+    let imageData: Data?
 }
 
 struct FoodBasketPlanSnapshotGroceryLine: Codable, Equatable, Identifiable {
@@ -174,7 +190,12 @@ enum FoodBasketPlanSnapshotStore {
             weekStarting: weekStarting,
             dinnerMealNames: mealNames,
             groceryLines: ShoppingListLine.makeLines(for: meals)
-                .map(FoodBasketPlanSnapshotGroceryLine.init)
+                .map(FoodBasketPlanSnapshotGroceryLine.init),
+            plannedMeals: try plannedMealSnapshots(
+                for: plan,
+                in: modelContext,
+                weekStarting: weekStarting
+            )
         )
     }
 
@@ -220,6 +241,94 @@ enum FoodBasketPlanSnapshotStore {
         guard meals.isEmpty else { return meals }
 
         return (plan.plannedMeals ?? []).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private static func plannedMealSnapshots(
+        for plan: WeekPlan?,
+        in modelContext: ModelContext,
+        weekStarting: Date
+    ) throws -> [FoodBasketPlanSnapshotPlannedMeal] {
+        guard let plan else { return [] }
+
+        let planID = plan.id
+        let descriptor = FetchDescriptor<PlannedMealPortion>(
+            predicate: #Predicate {
+                $0.weekPlan?.id == planID || $0.plannedMeal?.weekPlan?.id == planID
+            },
+            sortBy: [
+                SortDescriptor(\PlannedMealPortion.dayOffset),
+                SortDescriptor(\PlannedMealPortion.sortOrder),
+            ]
+        )
+        let portions = try modelContext.fetch(descriptor)
+        let sourcePortions = portions.isEmpty ? fallbackPortions(for: plan) : portions
+
+        return sourcePortions.compactMap { portion in
+            guard let plannedMeal = portion.plannedMeal,
+                  let recipe = plannedMeal.recipe else {
+                return nil
+            }
+
+            let mealType = portion.mealType ?? recipe.mealType
+            let plannedDate = calendar.date(
+                byAdding: .day,
+                value: portion.dayOffset,
+                to: weekStarting
+            ) ?? weekStarting
+
+            return FoodBasketPlanSnapshotPlannedMeal(
+                id: portion.id,
+                recipeID: recipe.id,
+                recipeName: recipe.name,
+                plannedDate: plannedDate,
+                dayOffset: portion.dayOffset,
+                mealSortOrder: plannedMeal.sortOrder,
+                portionSortOrder: portion.sortOrder,
+                mealTypeID: mealType?.id,
+                mealTypeName: mealType?.name,
+                imageData: widgetImageData(from: recipe.photoData)
+            )
+        }
+    }
+
+    private static func fallbackPortions(for plan: WeekPlan) -> [PlannedMealPortion] {
+        (plan.plannedMeals ?? []).enumerated().map { index, meal in
+            PlannedMealPortion(
+                dayOffset: 0,
+                sortOrder: index,
+                weekPlan: plan,
+                plannedMeal: meal,
+                mealType: meal.recipe?.mealType
+            )
+        }
+    }
+
+    private static func widgetImageData(from sourceData: Data?) -> Data? {
+        guard let sourceData,
+              let image = UIImage(data: sourceData) else {
+            return nil
+        }
+
+        let maxDimension: CGFloat = 900
+        let largestDimension = max(image.size.width, image.size.height)
+        let scaledImage: UIImage
+
+        if largestDimension > maxDimension {
+            let scale = maxDimension / largestDimension
+            let targetSize = CGSize(
+                width: image.size.width * scale,
+                height: image.size.height * scale
+            )
+            let format = UIGraphicsImageRendererFormat.default()
+            format.scale = 1
+            scaledImage = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+                image.draw(in: CGRect(origin: .zero, size: targetSize))
+            }
+        } else {
+            scaledImage = image
+        }
+
+        return scaledImage.jpegData(compressionQuality: 0.72)
     }
 
     private static var currentWeekStarting: Date {
