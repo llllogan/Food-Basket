@@ -79,7 +79,6 @@
 		FB5A010E2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift; sourceTree = "<group>"; };
 		FB5A010F2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift; sourceTree = "<group>"; };
 		FB5A01102FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientEnrichmentRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Ingredients/IngredientEnrichmentRunner.swift; sourceTree = "<group>"; };
-		FB5A01112FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientImageGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Ingredients/IngredientImageGenerator.swift; sourceTree = "<group>"; };
 		FB5A01122FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientCategorySuggestionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodBasket/Features/Ingredients/IngredientCategorySuggestionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -203,7 +202,6 @@
 				FB5A010E2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLIngredientImporter.swift */,
 				FB5A010F2FD1000000000001 /* FoodBasket/Features/Recipes/Importing/RecipeURLRecipeImporter.swift */,
 				FB5A01102FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientEnrichmentRunner.swift */,
-				FB5A01112FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientImageGenerator.swift */,
 				FB5A01122FD1000000000001 /* FoodBasket/Features/Ingredients/IngredientCategorySuggestionService.swift */,
 			);
 			name = "Shared Extension Sources";

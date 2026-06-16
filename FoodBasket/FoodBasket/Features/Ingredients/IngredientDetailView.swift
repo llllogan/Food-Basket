@@ -19,7 +19,7 @@ struct IngredientDetailView: View {
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
     @State private var newCategoryName = ""
     @State private var showingNewCategoryAlert = false
-    @State private var isGeneratingImage = false
+    @State private var showingImagePlayground = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
     @State private var showingDeleteConfirmation = false
@@ -31,6 +31,18 @@ struct IngredientDetailView: View {
     private var usedRecipesText: String {
         let count = usedRecipes.count
         return "Used in \(count) \(count == 1 ? "recipe" : "recipes")"
+    }
+
+    private var trimmedName: String {
+        ingredient.name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canGenerateIngredientImage: Bool {
+        supportsImagePlayground && !trimmedName.isEmpty
+    }
+
+    private var imagePlaygroundPrompt: String {
+        IngredientImagePlayground.prompt(for: trimmedName)
     }
 
     init(
@@ -113,15 +125,11 @@ struct IngredientDetailView: View {
             if supportsImagePlayground {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        regenerateImage()
+                        showImagePlayground()
                     } label: {
-                        if isGeneratingImage {
-                            ProgressView()
-                        } else {
-                            Label("Regenerate Image", image: "custom.photo.badge.sparkles")
-                        }
+                        Label("Generate Image", image: "custom.photo.badge.sparkles")
                     }
-                    .disabled(isGeneratingImage)
+                    .disabled(!canGenerateIngredientImage)
                 }
             }
         }
@@ -151,6 +159,13 @@ struct IngredientDetailView: View {
             }
             .ignoresSafeArea()
         }
+        .imagePlaygroundSheet(
+            isPresented: $showingImagePlayground,
+            concept: imagePlaygroundPrompt
+        ) { imageURL in
+            applyGeneratedImage(at: imageURL)
+        }
+        .imagePlaygroundGenerationStyle(.illustration, in: [.illustration])
         .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -176,23 +191,15 @@ struct IngredientDetailView: View {
         try? modelContext.save()
     }
 
-    private func regenerateImage() {
-        isGeneratingImage = true
+    private func showImagePlayground() {
+        guard canGenerateIngredientImage else { return }
+        showingImagePlayground = true
+    }
 
-        Task { @MainActor in
-            defer {
-                isGeneratingImage = false
-            }
-
-            guard let photoData = await IngredientImageGenerator.generateImageData(
-                for: ingredient.name
-            ) else {
-                return
-            }
-
-            ingredient.photoData = photoData
-            try? modelContext.save()
-        }
+    private func applyGeneratedImage(at imageURL: URL) {
+        guard let photoData = IngredientImagePlayground.photoData(from: imageURL) else { return }
+        ingredient.photoData = photoData
+        try? modelContext.save()
     }
 
     private func takePhoto() {

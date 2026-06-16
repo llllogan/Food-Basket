@@ -28,9 +28,7 @@ struct IngredientFormView: View {
     @State private var suggestedCategoryID: UUID?
     @State private var manuallySelectedCategoryName: String?
     @State private var draftPhotoData: Data?
-    @State private var draftPhotoSource: IngredientDraftPhotoSource = .none
-    @State private var isGeneratingImage = false
-    @State private var activeImageGenerationID: UUID?
+    @State private var showingImagePlayground = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
     @State private var didFinish = false
@@ -59,16 +57,16 @@ struct IngredientFormView: View {
         return "\(canSuggestCategory)|\(trimmedName.normalizedLookupValue)|\(categoryKey)"
     }
 
-    private var imageGenerationKey: String {
-        "\(supportsImagePlayground)|\(trimmedName.normalizedLookupValue)"
-    }
-
     private var canSuggestCategory: Bool {
         IngredientCategorySuggestionService.isAvailable
     }
 
     private var canGenerateIngredientImage: Bool {
-        supportsImagePlayground && !trimmedName.isEmpty && !isGeneratingImage
+        supportsImagePlayground && !trimmedName.isEmpty
+    }
+
+    private var imagePlaygroundPrompt: String {
+        IngredientImagePlayground.prompt(for: trimmedName)
     }
 
     var body: some View {
@@ -76,18 +74,17 @@ struct IngredientFormView: View {
             Section {
                 VStack(spacing: 18) {
                     IngredientDraftPhotoThumbnail(
-                        photoData: draftPhotoData,
-                        isGenerating: isGeneratingImage
+                        photoData: draftPhotoData
                     )
 
                     HStack(spacing: 8) {
                         if supportsImagePlayground {
                             IngredientPhotoActionButton(
-                                title: "Regenerate",
+                                title: "Generate",
                                 systemImage: "wand.and.sparkles",
                                 isDisabled: !canGenerateIngredientImage
                             ) {
-                                regenerateDraftImage()
+                                showImagePlayground()
                             }
                         }
 
@@ -157,9 +154,6 @@ struct IngredientFormView: View {
         .task(id: categorySuggestionKey) {
             await suggestCategoryIfNeeded()
         }
-        .task(id: imageGenerationKey) {
-            await generateDraftImageIfNeeded()
-        }
         .alert("New Category", isPresented: $showingNewCategoryAlert) {
             TextField("Category name", text: $newCategoryName)
 
@@ -172,13 +166,17 @@ struct IngredientFormView: View {
         }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraPicker { image in
-                activeImageGenerationID = nil
-                isGeneratingImage = false
                 draftPhotoData = image.recipePhotoData
-                draftPhotoSource = .captured
             }
             .ignoresSafeArea()
         }
+        .imagePlaygroundSheet(
+            isPresented: $showingImagePlayground,
+            concept: imagePlaygroundPrompt
+        ) { imageURL in
+            applyGeneratedDraftImage(at: imageURL)
+        }
+        .imagePlaygroundGenerationStyle(.illustration, in: [.illustration])
         .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -335,66 +333,14 @@ struct IngredientFormView: View {
         categorySuggestionState = .suggested(category.name)
     }
 
-    private func generateDraftImageIfNeeded() async {
-        guard supportsImagePlayground else {
-            isGeneratingImage = false
-            return
-        }
-
-        guard !trimmedName.isEmpty else {
-            guard draftPhotoSource != .captured else { return }
-            activeImageGenerationID = nil
-            isGeneratingImage = false
-            draftPhotoData = nil
-            draftPhotoSource = .none
-            return
-        }
-
-        guard draftPhotoSource != .captured else { return }
-        await generateDraftImage(replacingCapturedPhoto: false)
+    private func showImagePlayground() {
+        guard canGenerateIngredientImage else { return }
+        showingImagePlayground = true
     }
 
-    private func regenerateDraftImage() {
-        Task {
-            await generateDraftImage(replacingCapturedPhoto: true)
-        }
-    }
-
-    private func generateDraftImage(replacingCapturedPhoto: Bool) async {
-        let ingredientName = trimmedName
-        guard supportsImagePlayground, !ingredientName.isEmpty else { return }
-        guard replacingCapturedPhoto || draftPhotoSource != .captured else { return }
-
-        let generationID = UUID()
-        activeImageGenerationID = generationID
-        isGeneratingImage = true
-        draftPhotoData = nil
-        draftPhotoSource = .none
-
-        do {
-            try Task.checkCancellation()
-            let photoData = await IngredientImageGenerator.generateImageData(for: ingredientName)
-            try Task.checkCancellation()
-
-            guard activeImageGenerationID == generationID else { return }
-            activeImageGenerationID = nil
-            isGeneratingImage = false
-
-            guard trimmedName == ingredientName else { return }
-            guard replacingCapturedPhoto || draftPhotoSource != .captured else { return }
-
-            draftPhotoData = photoData
-            draftPhotoSource = photoData == nil ? .none : .generated
-        } catch is CancellationError {
-            guard activeImageGenerationID == generationID else { return }
-            activeImageGenerationID = nil
-            isGeneratingImage = false
-        } catch {
-            guard activeImageGenerationID == generationID else { return }
-            activeImageGenerationID = nil
-            isGeneratingImage = false
-            draftPhotoSource = .none
-        }
+    private func applyGeneratedDraftImage(at imageURL: URL) {
+        guard let photoData = IngredientImagePlayground.photoData(from: imageURL) else { return }
+        draftPhotoData = photoData
     }
 
     private func takePhoto() {
@@ -407,19 +353,12 @@ struct IngredientFormView: View {
     }
 }
 
-private enum IngredientDraftPhotoSource {
-    case none
-    case generated
-    case captured
-}
-
 private struct IngredientDraftPhotoThumbnail: View {
     let photoData: Data?
-    let isGenerating: Bool
 
     var body: some View {
         Group {
-            if let image = photoData.flatMap(UIImage.init(data:)), !isGenerating {
+            if let image = photoData.flatMap(UIImage.init(data:)) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -427,14 +366,9 @@ private struct IngredientDraftPhotoThumbnail: View {
                 ZStack {
                     Color(uiColor: .tertiarySystemFill)
 
-                    if isGenerating {
-                        ProgressView()
-                            .controlSize(.large)
-                    } else {
-                        Image(systemName: "carrot")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                    }
+                    Image(systemName: "carrot")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

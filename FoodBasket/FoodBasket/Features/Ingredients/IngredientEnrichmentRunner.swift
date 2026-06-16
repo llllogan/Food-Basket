@@ -17,7 +17,7 @@ enum IngredientEnrichmentRunner {
             FetchDescriptor<Ingredient>(sortBy: [SortDescriptor(\.name)])
         )) ?? []
         let pendingIngredients = ingredients.filter {
-            $0.category == nil || $0.photoData == nil
+            $0.category == nil
         }
 
         await enrichIngredients(pendingIngredients, in: modelContext)
@@ -51,11 +51,6 @@ enum IngredientEnrichmentRunner {
                 for: ingredient.name,
                 from: categories
             )
-            try? modelContext.save()
-        }
-
-        if ingredient.photoData == nil {
-            ingredient.photoData = await IngredientImageGenerator.generateImageData(for: ingredient.name)
             try? modelContext.save()
         }
     }
