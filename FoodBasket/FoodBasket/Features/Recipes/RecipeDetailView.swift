@@ -438,7 +438,7 @@ struct RecipeDetailView: View {
             Button {
                 showingAddIngredient = true
             } label: {
-                Label("Add Ingredient", systemImage: "plus")
+                Label("Add Ingredient", image: "custom.carrot.badge.plus")
             }
         }
     }

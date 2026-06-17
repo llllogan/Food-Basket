@@ -29,6 +29,7 @@ struct IngredientFormView: View {
     @State private var manuallySelectedCategoryName: String?
     @State private var draftPhotoData: Data?
     @State private var showingImagePlayground = false
+    @State private var isPresentingImagePlayground = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
     @State private var didFinish = false
@@ -81,8 +82,9 @@ struct IngredientFormView: View {
                         if supportsImagePlayground {
                             IngredientPhotoActionButton(
                                 title: "Generate",
-                                systemImage: "wand.and.sparkles",
-                                isDisabled: !canGenerateIngredientImage
+                                image: "custom.photo.badge.sparkles",
+                                isShowingProgress: isPresentingImagePlayground,
+                                isDisabled: !canGenerateIngredientImage || isPresentingImagePlayground
                             ) {
                                 showImagePlayground()
                             }
@@ -177,6 +179,11 @@ struct IngredientFormView: View {
             applyGeneratedDraftImage(at: imageURL)
         }
         .imagePlaygroundGenerationStyle(.illustration, in: [.illustration])
+        .onChange(of: showingImagePlayground) { _, isPresented in
+            if !isPresented {
+                isPresentingImagePlayground = false
+            }
+        }
         .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -335,6 +342,7 @@ struct IngredientFormView: View {
 
     private func showImagePlayground() {
         guard canGenerateIngredientImage else { return }
+        isPresentingImagePlayground = true
         showingImagePlayground = true
     }
 
@@ -379,15 +387,42 @@ private struct IngredientDraftPhotoThumbnail: View {
 
 private struct IngredientPhotoActionButton: View {
     let title: String
-    let systemImage: String
+    let image: String?
+    let systemImage: String?
+    let isShowingProgress: Bool
     let isDisabled: Bool
     let action: () -> Void
+
+    init(
+        title: String,
+        image: String? = nil,
+        systemImage: String? = nil,
+        isShowingProgress: Bool = false,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.image = image
+        self.systemImage = systemImage
+        self.isShowingProgress = isShowingProgress
+        self.isDisabled = isDisabled
+        self.action = action
+    }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .font(.subheadline)
+                if isShowingProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if let image {
+                    Image(image)
+                        .font(.subheadline)
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.subheadline)
+                }
+
                 Text(title)
             }
             .padding(.vertical, 4)
