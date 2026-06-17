@@ -252,15 +252,14 @@ enum FoodBasketPlanSnapshotStore {
 
         let planID = plan.id
         let descriptor = FetchDescriptor<PlannedMealPortion>(
-            predicate: #Predicate {
-                $0.weekPlan?.id == planID || $0.plannedMeal?.weekPlan?.id == planID
-            },
             sortBy: [
                 SortDescriptor(\PlannedMealPortion.dayOffset),
                 SortDescriptor(\PlannedMealPortion.sortOrder),
             ]
         )
-        let portions = try modelContext.fetch(descriptor)
+        let portions = try modelContext.fetch(descriptor).filter {
+            $0.weekPlan?.id == planID || $0.plannedMeal?.weekPlan?.id == planID
+        }
         let sourcePortions = portions.isEmpty ? fallbackPortions(for: plan) : portions
 
         return sourcePortions.compactMap { portion in

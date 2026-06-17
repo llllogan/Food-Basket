@@ -622,7 +622,7 @@
 				INFOPLIST_FILE = FoodBasketWidgetExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FoodBasketWidgetExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -655,7 +655,7 @@
 				INFOPLIST_FILE = FoodBasketWidgetExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FoodBasketWidgetExtension;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
