@@ -18,6 +18,7 @@ struct WeekPlanSettingsView: View {
     @State private var showingSyncCalendarPicker = false
     @State private var isUpdatingCalendar = false
     @State private var exportAlert: ReminderExportAlert?
+    @State private var ingredientImagePromptDraft = IngredientImagePromptDefaults.savedTemplate
 
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
@@ -32,6 +33,7 @@ struct WeekPlanSettingsView: View {
     @AppStorage(WeekPlanCalendarFilterDefaults.excludeMealsWithoutMealTypeKey) private var excludeCalendarMealsWithoutMealType = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
+    @AppStorage(IngredientImagePromptDefaults.templateKey) private var ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
 
     init(onOpenThisWeekCalendar: @escaping () -> Void = {}) {
         self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
@@ -53,6 +55,14 @@ struct WeekPlanSettingsView: View {
         )
     }
 
+    private var hasIngredientImagePromptChanges: Bool {
+        ingredientImagePromptDraft != ingredientImagePromptTemplate
+    }
+
+    private var canSaveIngredientImagePrompt: Bool {
+        IngredientImagePromptDefaults.isValid(ingredientImagePromptDraft)
+    }
+
     private var automaticCalendarSyncKey: String {
         [
             syncToICal ? "sync-on" : "sync-off",
@@ -70,6 +80,19 @@ struct WeekPlanSettingsView: View {
             }
             .navigationTitle("Settings")
             .toolbarTitleDisplayMode(.inlineLarge)
+            .toolbar {
+                if hasIngredientImagePromptChanges {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            saveIngredientImagePrompt()
+                        } label: {
+                            Label("Save Image Prompt", systemImage: "checkmark")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSaveIngredientImagePrompt)
+                    }
+                }
+            }
             .listStyle(.insetGrouped)
             .sheet(isPresented: $showingSyncCalendarPicker) {
                 NavigationStack {
@@ -94,6 +117,9 @@ struct WeekPlanSettingsView: View {
             .task(id: automaticCalendarSyncKey) {
                 await performCalendarAutomation()
             }
+            .onAppear {
+                ingredientImagePromptDraft = ingredientImagePromptTemplate
+            }
         }
     }
 
@@ -102,6 +128,7 @@ struct WeekPlanSettingsView: View {
         iCalSyncSettingsSection
         calendarViewSettingsSection
         weeklyCleanupSettingsSection
+        ingredientImageSettingsSection
         exportDefaultsSettingsSection
     }
 
@@ -178,6 +205,36 @@ struct WeekPlanSettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var ingredientImageSettingsSection: some View {
+        Section {
+            TextField(
+                "Image prompt",
+                text: $ingredientImagePromptDraft,
+                axis: .vertical
+            )
+            .lineLimit(3...6)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+
+            Button(role: .destructive) {
+                resetIngredientImagePrompt()
+            } label: {
+                HStack {
+                    Text("Reset Image Prompt")
+                    Spacer()
+                }
+            }
+            .disabled(
+                ingredientImagePromptTemplate == IngredientImagePromptDefaults.defaultTemplate
+                    && ingredientImagePromptDraft == IngredientImagePromptDefaults.defaultTemplate
+            )
+        } header: {
+            Text("Ingredient Images")
+        } footer: {
+            Text("The word 'ingredient_name' will be replaced with the ingredient being created.")
         }
     }
 
@@ -262,6 +319,16 @@ struct WeekPlanSettingsView: View {
     private func clearDefaultRemindersList() {
         lastRemindersListID = ""
         lastRemindersListName = ""
+    }
+
+    private func saveIngredientImagePrompt() {
+        guard canSaveIngredientImagePrompt else { return }
+        ingredientImagePromptTemplate = ingredientImagePromptDraft
+    }
+
+    private func resetIngredientImagePrompt() {
+        ingredientImagePromptDraft = IngredientImagePromptDefaults.defaultTemplate
+        ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
     }
 
     private func showCalendarError(_ error: Error) {

@@ -8,9 +8,31 @@
 import Foundation
 import UIKit
 
+enum IngredientImagePromptDefaults {
+    static let templateKey = "ingredientImagePromptTemplate"
+    static let ingredientNameToken = "ingredient_name"
+    static let defaultTemplate = "A simple centered illustration of ingredient_name, isolated on a plain background"
+
+    static var savedTemplate: String {
+        let template = FoodBasketSharedContainer.string(forKey: templateKey) ?? defaultTemplate
+        guard isValid(template) else {
+            return defaultTemplate
+        }
+
+        return template
+    }
+
+    static func isValid(_ template: String) -> Bool {
+        template.contains(ingredientNameToken)
+    }
+}
+
 enum IngredientImagePlayground {
     static func prompt(for ingredientName: String) -> String {
-        "A simple centered illustration of \(ingredientName), isolated on a plain background"
+        IngredientImagePromptDefaults.savedTemplate.replacingOccurrences(
+            of: IngredientImagePromptDefaults.ingredientNameToken,
+            with: ingredientName
+        )
     }
 
     static func photoData(from imageURL: URL) -> Data? {

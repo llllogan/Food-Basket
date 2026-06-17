@@ -415,6 +415,7 @@ private struct IngredientPhotoActionButton: View {
                 if isShowingProgress {
                     ProgressView()
                         .controlSize(.small)
+                        .padding(.vertical, 5)
                 } else if let image {
                     Image(image)
                         .font(.subheadline)
@@ -422,9 +423,10 @@ private struct IngredientPhotoActionButton: View {
                 } else if let systemImage {
                     Image(systemName: systemImage)
                         .font(.subheadline)
+                        .padding(.vertical, 5)
                 }
 
-                Text(title)
+                Text(isShowingProgress ? "Generating..." : title)
             }
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity)

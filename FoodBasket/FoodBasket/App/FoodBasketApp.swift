@@ -100,6 +100,7 @@ struct FoodBasketApp: App {
             "removeMealsAtStartOfNewWeek",
             "mealCleanupWeekStartDay",
             "ingredientListOrganiseMode",
+            IngredientImagePromptDefaults.templateKey,
         ])
     }
 
