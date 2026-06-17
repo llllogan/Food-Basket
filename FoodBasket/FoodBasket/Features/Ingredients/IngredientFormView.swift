@@ -418,6 +418,7 @@ private struct IngredientPhotoActionButton: View {
                 } else if let image {
                     Image(image)
                         .font(.subheadline)
+                        .padding(.top, 5)
                 } else if let systemImage {
                     Image(systemName: systemImage)
                         .font(.subheadline)
