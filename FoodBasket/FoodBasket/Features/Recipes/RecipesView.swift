@@ -18,7 +18,6 @@ private enum RecipeListTransitionSource: Hashable {
 struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
-    @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Binding private var selectedRecipeID: UUID?
     private let onOpenThisWeekCalendar: (Set<UUID>) -> Void
     @Namespace private var recipeListTransitionNamespace
@@ -35,12 +34,16 @@ struct RecipesView: View {
     @State private var searchText = ""
     @State private var sortMode = RecipeListSortMode.name
     @State private var selectedMealTypeFilterID: UUID?
+    @State private var didApplyInitialMealTypeFilter = false
+    private let initialMealTypeFilterID: UUID?
 
     init(
         selectedRecipeID: Binding<UUID?> = .constant(nil),
+        initialMealTypeFilterID: UUID? = nil,
         onOpenThisWeekCalendar: @escaping (Set<UUID>) -> Void = { _ in }
     ) {
         _selectedRecipeID = selectedRecipeID
+        self.initialMealTypeFilterID = initialMealTypeFilterID
         self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
     }
 
@@ -57,15 +60,6 @@ struct RecipesView: View {
         }
 
         return URL(string: "https://\(trimmedURL)")
-    }
-
-    private var selectedMealTypeFilterTitle: String {
-        guard let selectedMealTypeFilterID,
-              let selectedMealType = mealTypes.first(where: { $0.id == selectedMealTypeFilterID }) else {
-            return "All"
-        }
-
-        return selectedMealType.name
     }
 
     @ViewBuilder
@@ -194,7 +188,7 @@ struct RecipesView: View {
             )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    filterAndSortMenu
+                    sortMenu
                 }
                 
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
@@ -260,6 +254,7 @@ struct RecipesView: View {
                 runningImportTask?.cancel()
             }
             .onAppear {
+                applyInitialMealTypeFilterIfNeeded()
                 openSelectedRecipeIfNeeded()
             }
             .onChange(of: selectedRecipeID) { _, _ in
@@ -272,34 +267,15 @@ struct RecipesView: View {
         EdgeInsets(top: 56, leading: 20, bottom: 56, trailing: 20)
     }
 
-    private var filterAndSortMenu: some View {
+    private var sortMenu: some View {
         Menu {
-            Section("Filter") {
-                Picker(selectedMealTypeFilterTitle, selection: $selectedMealTypeFilterID) {
-                    Text("All").tag(nil as UUID?)
-
-                    ForEach(mealTypes) { mealType in
-                        Text(mealType.name).tag(Optional(mealType.id))
-                    }
-                }
-                .pickerStyle(.menu)
+            Picker(sortMode.title, selection: $sortMode) {
+                Text("by Name").tag(RecipeListSortMode.name)
+                Text("by Rating").tag(RecipeListSortMode.rating)
             }
-            
-            Section("Order") {
-                Picker(sortMode.title, selection: $sortMode) {
-                    Text("by Name").tag(RecipeListSortMode.name)
-                    Text("by Rating").tag(RecipeListSortMode.rating)
-                }
-                .pickerStyle(.menu)
-            }
-
+            .pickerStyle(.menu)
         } label: {
-            Label(
-                "Filter and Sort",
-                systemImage: selectedMealTypeFilterID == nil
-                    ? "line.3.horizontal.decrease.circle"
-                    : "line.3.horizontal.decrease.circle.fill"
-            )
+            Label("Order Recipes", systemImage: "arrow.up.arrow.down.circle")
         }
     }
 
@@ -315,6 +291,13 @@ struct RecipesView: View {
                 .foregroundStyle(.secondary)
                 .navigationTitle("Recipe")
         }
+    }
+
+    private func applyInitialMealTypeFilterIfNeeded() {
+        guard !didApplyInitialMealTypeFilter else { return }
+
+        selectedMealTypeFilterID = initialMealTypeFilterID
+        didApplyInitialMealTypeFilter = true
     }
 
     private func openSelectedRecipeIfNeeded() {

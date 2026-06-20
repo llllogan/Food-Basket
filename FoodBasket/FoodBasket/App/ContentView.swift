@@ -31,7 +31,7 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            RecipesView(
+            RecipeDiscoveryView(
                 selectedRecipeID: $selectedRecipeID,
                 onOpenThisWeekCalendar: openThisWeekCalendar
             )
