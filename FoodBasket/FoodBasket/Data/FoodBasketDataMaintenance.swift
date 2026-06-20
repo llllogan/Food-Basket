@@ -60,6 +60,46 @@ enum FoodBasketDataMaintenance {
         return duplicatesToRemove.count
     }
 
+    @discardableResult
+    static func deduplicateMeasurementUnits(in modelContext: ModelContext) throws -> Int {
+        let units = try modelContext.fetch(FetchDescriptor<MeasurementUnit>())
+        guard units.count > 1 else { return 0 }
+
+        var changed = normalizeMeasurementUnitLookupValues(units)
+        let recipeIngredients = try modelContext.fetch(FetchDescriptor<RecipeIngredient>())
+        let usageCounts = measurementUnitUsageCounts(recipeIngredients: recipeIngredients)
+
+        var replacementsByObjectID: [ObjectIdentifier: MeasurementUnit] = [:]
+        var duplicatesToRemove: [MeasurementUnit] = []
+
+        for duplicateGroup in duplicateGroups(in: units) {
+            let survivor = survivor(in: duplicateGroup, usageCounts: usageCounts)
+            for duplicate in duplicateGroup where duplicate !== survivor {
+                replacementsByObjectID[ObjectIdentifier(duplicate)] = survivor
+                duplicatesToRemove.append(duplicate)
+            }
+        }
+
+        guard !duplicatesToRemove.isEmpty else {
+            if changed {
+                try modelContext.save()
+            }
+            return 0
+        }
+
+        changed = reassignRecipeIngredientUnits(
+            recipeIngredients,
+            replacementsByObjectID: replacementsByObjectID
+        ) || changed
+
+        for duplicate in duplicatesToRemove {
+            modelContext.delete(duplicate)
+        }
+
+        try modelContext.save()
+        return duplicatesToRemove.count
+    }
+
     private static func normalizeMealTypeLookupValues(_ mealTypes: [MealType]) -> Bool {
         var changed = false
 
@@ -73,11 +113,36 @@ enum FoodBasketDataMaintenance {
         return changed
     }
 
+    private static func normalizeMeasurementUnitLookupValues(_ units: [MeasurementUnit]) -> Bool {
+        var changed = false
+
+        for unit in units {
+            let normalizedName = unit.name.normalizedLookupValue
+            guard unit.normalizedName != normalizedName else { continue }
+            unit.normalizedName = normalizedName
+            changed = true
+        }
+
+        return changed
+    }
+
     private static func duplicateGroups(in mealTypes: [MealType]) -> [[MealType]] {
         Dictionary(grouping: mealTypes) { mealType in
             mealType.normalizedName.isEmpty
                 ? mealType.name.normalizedLookupValue
                 : mealType.normalizedName
+        }
+        .values
+        .filter { group in
+            group.count > 1 && !(group.first?.normalizedName.isEmpty ?? true)
+        }
+    }
+
+    private static func duplicateGroups(in units: [MeasurementUnit]) -> [[MeasurementUnit]] {
+        Dictionary(grouping: units) { unit in
+            unit.normalizedName.isEmpty
+                ? unit.name.normalizedLookupValue
+                : unit.normalizedName
         }
         .values
         .filter { group in
@@ -104,6 +169,19 @@ enum FoodBasketDataMaintenance {
         return usageCounts
     }
 
+    private static func measurementUnitUsageCounts(
+        recipeIngredients: [RecipeIngredient]
+    ) -> [ObjectIdentifier: Int] {
+        var usageCounts: [ObjectIdentifier: Int] = [:]
+
+        for recipeIngredient in recipeIngredients {
+            guard let unit = recipeIngredient.unit else { continue }
+            usageCounts[ObjectIdentifier(unit), default: 0] += 1
+        }
+
+        return usageCounts
+    }
+
     private static func survivor(
         in mealTypes: [MealType],
         usageCounts: [ObjectIdentifier: Int]
@@ -118,6 +196,31 @@ enum FoodBasketDataMaintenance {
             let nameComparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
             if nameComparison != .orderedSame {
                 return nameComparison == .orderedAscending
+            }
+
+            return lhs.id.uuidString < rhs.id.uuidString
+        }[0]
+    }
+
+    private static func survivor(
+        in units: [MeasurementUnit],
+        usageCounts: [ObjectIdentifier: Int]
+    ) -> MeasurementUnit {
+        units.sorted { lhs, rhs in
+            let lhsUsageCount = usageCounts[ObjectIdentifier(lhs), default: 0]
+            let rhsUsageCount = usageCounts[ObjectIdentifier(rhs), default: 0]
+            if lhsUsageCount != rhsUsageCount {
+                return lhsUsageCount > rhsUsageCount
+            }
+
+            let nameComparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+            if nameComparison != .orderedSame {
+                return nameComparison == .orderedAscending
+            }
+
+            let symbolComparison = lhs.symbol.localizedCaseInsensitiveCompare(rhs.symbol)
+            if symbolComparison != .orderedSame {
+                return symbolComparison == .orderedAscending
             }
 
             return lhs.id.uuidString < rhs.id.uuidString
@@ -156,6 +259,25 @@ enum FoodBasketDataMaintenance {
             }
 
             portion.mealType = replacement
+            changed = true
+        }
+
+        return changed
+    }
+
+    private static func reassignRecipeIngredientUnits(
+        _ recipeIngredients: [RecipeIngredient],
+        replacementsByObjectID: [ObjectIdentifier: MeasurementUnit]
+    ) -> Bool {
+        var changed = false
+
+        for recipeIngredient in recipeIngredients {
+            guard let unit = recipeIngredient.unit,
+                  let replacement = replacementsByObjectID[ObjectIdentifier(unit)] else {
+                continue
+            }
+
+            recipeIngredient.unit = replacement
             changed = true
         }
 

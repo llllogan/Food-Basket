@@ -45,6 +45,8 @@ struct RecipeDetailView: View {
     @State private var showingReminderListPicker = false
     @State private var isUpdatingReminders = false
     @State private var activeAlert: RecipeDetailAlert?
+    @State private var showingLinkRecipeURLAlert = false
+    @State private var linkedRecipeURLText = ""
     @State private var isScrubbingRating = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
@@ -197,6 +199,21 @@ struct RecipeDetailView: View {
         recipe.externalURL
     }
 
+    private var linkedRecipeURL: URL? {
+        recipeURL(from: linkedRecipeURLText)
+    }
+
+    private func recipeURL(from text: String) -> URL? {
+        let trimmedURL = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty else { return nil }
+
+        if trimmedURL.contains("://") {
+            return URL(string: trimmedURL)
+        }
+
+        return URL(string: "https://\(trimmedURL)")
+    }
+
     @ViewBuilder
     private func zoomTransitionSource<Content: View>(
         id: RecipeDetailTransitionSource,
@@ -285,6 +302,25 @@ struct RecipeDetailView: View {
                 if !isPresented {
                     isPresentingImagePlayground = false
                 }
+            }
+            .alert("Link Recipe", isPresented: $showingLinkRecipeURLAlert) {
+                TextField("https://example.com/recipe", text: $linkedRecipeURLText)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                Button("Cancel", role: .cancel) {}
+
+                Button("Paste from Clipboard") {
+                    pasteRecipeURLFromClipboard()
+                }
+
+                Button("Link") {
+                    linkRecipeURL()
+                }
+                .disabled(linkedRecipeURL == nil)
+            } message: {
+                Text("Paste a recipe URL.")
             }
             .alert(item: $activeAlert) { alert in
                 recipeAlert(for: alert)
@@ -456,13 +492,27 @@ struct RecipeDetailView: View {
             Text(title)
         }
         .buttonStyle(.borderless)
-//        .controlSize(.large)
     }
     
     private var URLSnapshotSection: some View {
         Section {
             if let externalURL {
                 RecipeExternalURLPreviewRow(url: externalURL)
+            } else {
+                Button {
+                    linkedRecipeURLText = ""
+                    showingLinkRecipeURLAlert = true
+                } label: {
+                    Label(title: {
+                        Text("Link an online recipe")
+                    }, icon: {
+                        Image(systemName: "link")
+                            .font(.footnote)
+                    })
+                }
+                .foregroundColor(Color(uiColor: .label))
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
             }
         }
     }
@@ -540,14 +590,16 @@ struct RecipeDetailView: View {
         Button {
             addToDefaultReminderListOrChooseList()
         } label: {
-            Label(reminderOverflowMenuTitle, systemImage: "square.and.arrow.up")
+            Label(reminderOverflowMenuTitle, systemImage: "plus")
         }
         .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+        
+        Divider()
 
         Button {
             takePhoto()
         } label: {
-            Label("Take Meal Photo", systemImage: "camera")
+            Label("Take Photo", systemImage: "camera")
         }
 
         if supportsImagePlayground {
@@ -560,6 +612,9 @@ struct RecipeDetailView: View {
         }
 
         if let externalURL {
+            
+            Divider()
+            
             Button {
                 openURL(externalURL)
             } label: {
@@ -586,7 +641,7 @@ struct RecipeDetailView: View {
             ProgressView()
                 .controlSize(.regular)
         } else {
-            Label("Generate Meal Photo", image: "custom.photo.badge.sparkles")
+            Label("Generate Photo", image: "custom.photo.badge.sparkles")
         }
     }
 
@@ -943,6 +998,29 @@ struct RecipeDetailView: View {
         try? modelContext.save()
     }
 
+    private func linkRecipeURL() {
+        linkRecipe(to: linkedRecipeURL)
+    }
+
+    private func pasteRecipeURLFromClipboard() {
+        guard let clipboardText = UIPasteboard.general.string,
+              let clipboardURL = recipeURL(from: clipboardText) else {
+            activeAlert = .linkRecipeURLFailure
+            return
+        }
+
+        linkedRecipeURLText = clipboardText
+        linkRecipe(to: clipboardURL)
+    }
+
+    private func linkRecipe(to url: URL?) {
+        guard let url else { return }
+
+        recipe.externalURL = url
+        try? modelContext.save()
+        linkedRecipeURLText = ""
+    }
+
     private func deleteIngredientLine(_ line: RecipeIngredient) {
         recipe.ingredientLines?.removeAll { $0.id == line.id }
         line.recipe?.ingredientLines?.removeAll { $0.id == line.id }
@@ -1145,6 +1223,12 @@ struct RecipeDetailView: View {
                 message: Text(exportAlert.message),
                 dismissButton: .default(Text("OK"))
             )
+        case .linkRecipeURLFailure:
+            Alert(
+                title: Text("Unable to Link Recipe"),
+                message: Text("The clipboard does not contain a recipe URL."),
+                dismissButton: .default(Text("OK"))
+            )
         case .deleteConfirmation:
             Alert(
                 title: Text("Delete Recipe?"),
@@ -1307,6 +1391,7 @@ private enum RecipeDetailAlert: Identifiable {
     case cameraUnavailable
     case duplicateThisWeekUpdate(ThisWeekDuplicateUpdate)
     case export(ReminderExportAlert)
+    case linkRecipeURLFailure
     case deleteConfirmation
 
     var id: String {
@@ -1317,6 +1402,8 @@ private enum RecipeDetailAlert: Identifiable {
             "duplicate-\(update.id.uuidString)"
         case .export(let alert):
             "export-\(alert.id.uuidString)"
+        case .linkRecipeURLFailure:
+            "link-recipe-url-failure"
         case .deleteConfirmation:
             "delete-confirmation"
         }

@@ -380,8 +380,8 @@ private struct IngredientDraftPhotoThumbnail: View {
                 }
             }
         }
-        .frame(width: 132, height: 132)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .frame(width: 198, height: 198)
+        .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
     }
 }
 

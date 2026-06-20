@@ -106,7 +106,12 @@ struct WeekPlanSettingsView: View {
                             onOpenThisWeekCalendar: onOpenThisWeekCalendar
                         )
                     } label: {
-                        Label("View and weekly cleanup", systemImage: "refrigerator")
+                        Label {
+                            Text("View and weekly cleanup")
+                        } icon: {
+                            Image(systemName: "refrigerator")
+                                .font(.subheadline)
+                        }
                     }
                 }
 
@@ -131,6 +136,7 @@ struct WeekPlanSettingsView: View {
                             Text("Configure prompts")
                         } icon: {
                             Image("custom.photo.badge.sparkles")
+                                .font(.subheadline)
                                 .foregroundColor(.purple)
                                 .padding(.bottom, -4)
                         }
@@ -156,6 +162,7 @@ struct WeekPlanSettingsView: View {
                             Text("Update sync settings")
                         } icon: {
                             Image(systemName: "calendar")
+                                .font(.subheadline)
                                 .foregroundColor(.red)
                         }
                     }

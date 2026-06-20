@@ -121,6 +121,21 @@ struct IngredientDetailView: View {
                     Text("New Category")
                 }
             }
+
+            Section("Image Generation") {
+                NavigationLink {
+                    ImageGenerationSettingsView()
+                } label: {
+                    Label {
+                        Text("Edit image prompt")
+                    } icon: {
+                        Image("custom.photo.badge.sparkles")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.label))
+                            .padding(.bottom, -4)
+                    }
+                }
+            }
         }
         .navigationTitle(ingredient.name)
         .toolbarTitleDisplayMode(.inline)
@@ -348,24 +363,23 @@ private struct RecipeIngredientDetailFields: View {
                 .textInputAutocapitalization(.sentences)
                 .lineLimit(2...4)
             
-            Picker("Unit", selection: $line.unit) {
-                Text("None").tag(nil as MeasurementUnit?)
-
-                ForEach(units) { unit in
-                    Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
-                }
-            }
-            
             HStack {
                 TextField("Amount", value: $line.quantity, format: .number)
                     .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.tertiarySystemFill), in: .capsule)
+                
+                Picker("", selection: $line.unit) {
+                    Text("None").tag(nil as MeasurementUnit?)
 
-                if let symbol = line.unit?.symbol, !symbol.isEmpty {
-                    Text(symbol)
-                        .foregroundStyle(.secondary)
+                    ForEach(units) { unit in
+                        Text("\(unit.name) (\(unit.symbol))").tag(unit as MeasurementUnit?)
+                    }
                 }
             }
-
+            
             
             
         } header: {

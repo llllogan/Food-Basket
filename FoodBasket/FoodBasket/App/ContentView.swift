@@ -72,7 +72,10 @@ struct ContentView: View {
             let removedDuplicateMealTypeCount = (try? FoodBasketDataMaintenance.deduplicateMealTypes(
                 in: modelContext
             )) ?? 0
-            if removedDuplicateMealTypeCount > 0,
+            let removedDuplicateMeasurementUnitCount = (try? FoodBasketDataMaintenance.deduplicateMeasurementUnits(
+                in: modelContext
+            )) ?? 0
+            if removedDuplicateMealTypeCount + removedDuplicateMeasurementUnitCount > 0,
                (try? FoodBasketPlanSnapshotStore.refresh(in: modelContext)) != nil {
                 FoodBasketWidgetTimelineReloader.reloadTimelines()
             }

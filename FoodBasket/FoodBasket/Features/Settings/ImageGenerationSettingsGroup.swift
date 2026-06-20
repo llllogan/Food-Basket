@@ -7,6 +7,116 @@
 
 import SwiftUI
 
+struct ImageGenerationSettingsView: View {
+    @State private var ingredientImagePromptDraft = IngredientImagePromptDefaults.savedTemplate
+    @State private var ingredientImagePromptBeforeEditing: String?
+    @State private var recipeImagePromptDraft = RecipeImagePromptDefaults.savedTemplate
+    @State private var recipeImagePromptBeforeEditing: String?
+    @FocusState private var isEditingIngredientImagePrompt
+    @FocusState private var isEditingRecipeImagePrompt
+
+    @AppStorage(IngredientImagePromptDefaults.templateKey) private var ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
+    @AppStorage(RecipeImagePromptDefaults.templateKey) private var recipeImagePromptTemplate = RecipeImagePromptDefaults.defaultTemplate
+
+    private var hasIngredientImagePromptChanges: Bool {
+        ingredientImagePromptDraft != ingredientImagePromptTemplate
+    }
+
+    private var hasRecipeImagePromptChanges: Bool {
+        recipeImagePromptDraft != recipeImagePromptTemplate
+    }
+
+    private var hasImagePromptChanges: Bool {
+        hasIngredientImagePromptChanges || hasRecipeImagePromptChanges
+    }
+
+    private var canSaveIngredientImagePrompt: Bool {
+        IngredientImagePromptDefaults.isValid(ingredientImagePromptDraft)
+    }
+
+    private var canSaveRecipeImagePrompt: Bool {
+        RecipeImagePromptDefaults.isValid(recipeImagePromptDraft)
+    }
+
+    private var canSaveImagePrompts: Bool {
+        (!hasIngredientImagePromptChanges || canSaveIngredientImagePrompt)
+            && (!hasRecipeImagePromptChanges || canSaveRecipeImagePrompt)
+    }
+
+    var body: some View {
+        ImageGenerationSettingsGroup(
+            ingredientImagePromptDraft: $ingredientImagePromptDraft,
+            ingredientImagePromptTemplate: $ingredientImagePromptTemplate,
+            recipeImagePromptDraft: $recipeImagePromptDraft,
+            recipeImagePromptTemplate: $recipeImagePromptTemplate,
+            isEditingIngredientImagePrompt: $isEditingIngredientImagePrompt,
+            isEditingRecipeImagePrompt: $isEditingRecipeImagePrompt,
+            hasImagePromptChanges: hasImagePromptChanges,
+            canSaveImagePrompts: canSaveImagePrompts,
+            onSaveImagePrompts: saveImagePrompts,
+            onCancelImagePromptEditing: cancelImagePromptEditing,
+            onResetIngredientImagePrompt: resetIngredientImagePrompt,
+            onResetRecipeImagePrompt: resetRecipeImagePrompt
+        )
+        .onAppear {
+            ingredientImagePromptDraft = ingredientImagePromptTemplate
+            recipeImagePromptDraft = recipeImagePromptTemplate
+        }
+        .onChange(of: isEditingIngredientImagePrompt) { _, isEditing in
+            if isEditing {
+                ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
+            } else {
+                ingredientImagePromptBeforeEditing = nil
+            }
+        }
+        .onChange(of: isEditingRecipeImagePrompt) { _, isEditing in
+            if isEditing {
+                recipeImagePromptBeforeEditing = recipeImagePromptDraft
+            } else {
+                recipeImagePromptBeforeEditing = nil
+            }
+        }
+    }
+
+    private func saveImagePrompts() {
+        guard canSaveImagePrompts else { return }
+
+        if hasIngredientImagePromptChanges {
+            ingredientImagePromptTemplate = ingredientImagePromptDraft
+            ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
+        }
+
+        if hasRecipeImagePromptChanges {
+            recipeImagePromptTemplate = recipeImagePromptDraft
+            recipeImagePromptBeforeEditing = recipeImagePromptDraft
+        }
+    }
+
+    private func cancelImagePromptEditing() {
+        if isEditingIngredientImagePrompt {
+            ingredientImagePromptDraft = ingredientImagePromptBeforeEditing ?? ingredientImagePromptTemplate
+            isEditingIngredientImagePrompt = false
+        }
+
+        if isEditingRecipeImagePrompt {
+            recipeImagePromptDraft = recipeImagePromptBeforeEditing ?? recipeImagePromptTemplate
+            isEditingRecipeImagePrompt = false
+        }
+    }
+
+    private func resetIngredientImagePrompt() {
+        ingredientImagePromptDraft = IngredientImagePromptDefaults.defaultTemplate
+        ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
+        ingredientImagePromptBeforeEditing = IngredientImagePromptDefaults.defaultTemplate
+    }
+
+    private func resetRecipeImagePrompt() {
+        recipeImagePromptDraft = RecipeImagePromptDefaults.defaultTemplate
+        recipeImagePromptTemplate = RecipeImagePromptDefaults.defaultTemplate
+        recipeImagePromptBeforeEditing = RecipeImagePromptDefaults.defaultTemplate
+    }
+}
+
 struct ImageGenerationSettingsGroup: View {
     @Binding var ingredientImagePromptDraft: String
     @Binding var ingredientImagePromptTemplate: String

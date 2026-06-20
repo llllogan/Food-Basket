@@ -30,9 +30,9 @@ struct IngredientDetailImageView: View {
             }
         }
         .containerRelativeFrame(.horizontal) { width, _ in
-            width / 3
+            width / 2
         }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
     }
 }
 
