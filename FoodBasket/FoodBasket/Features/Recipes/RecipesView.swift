@@ -24,6 +24,7 @@ struct RecipesView: View {
     @Namespace private var recipeListTransitionNamespace
     @State private var navigationPath = NavigationPath()
     @State private var showingAddRecipe = false
+    @State private var pendingCreatedRecipeID: UUID?
     @State private var addRecipeTransitionSource: RecipeListTransitionSource = .addRecipeToolbar
     @State private var showingImportRecipeAlert = false
     @State private var importURLText = ""
@@ -221,10 +222,12 @@ struct RecipesView: View {
                 }
                 
             }
-            .sheet(isPresented: $showingAddRecipe) {
+            .sheet(isPresented: $showingAddRecipe, onDismiss: openPendingCreatedRecipeIfNeeded) {
                 zoomTransitionDestination(id: addRecipeTransitionSource) {
                     NavigationStack {
-                        RecipeFormView()
+                        RecipeFormView { recipeID in
+                            pendingCreatedRecipeID = recipeID
+                        }
                     }
                 }
             }
@@ -320,6 +323,14 @@ struct RecipesView: View {
         navigationPath = NavigationPath()
         navigationPath.append(selectedRecipeID)
         self.selectedRecipeID = nil
+    }
+
+    private func openPendingCreatedRecipeIfNeeded() {
+        guard let pendingCreatedRecipeID else { return }
+
+        navigationPath = NavigationPath()
+        navigationPath.append(pendingCreatedRecipeID)
+        self.pendingCreatedRecipeID = nil
     }
 
     private func importRecipeFromURL() {

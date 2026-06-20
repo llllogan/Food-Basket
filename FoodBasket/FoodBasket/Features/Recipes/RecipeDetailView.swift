@@ -494,11 +494,14 @@ struct RecipeDetailView: View {
         .buttonStyle(.borderless)
     }
     
+    @ViewBuilder
     private var URLSnapshotSection: some View {
-        Section {
-            if let externalURL {
+        if let externalURL {
+            Section {
                 RecipeExternalURLPreviewRow(url: externalURL)
-            } else {
+            }
+        } else if !ingredientLines.isEmpty {
+            Section {
                 Button {
                     linkedRecipeURLText = ""
                     showingLinkRecipeURLAlert = true

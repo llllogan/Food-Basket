@@ -14,6 +14,7 @@ struct RecipeFormView: View {
     @Query(sort: \MealType.name) private var mealTypes: [MealType]
 
     let recipe: Recipe?
+    let onCreateRecipe: (UUID) -> Void
     @State private var name: String
     @State private var method: String
     @State private var cookingTimeMinutes: Int
@@ -24,8 +25,12 @@ struct RecipeFormView: View {
     @State private var locallyCreatedMealTypes: [MealType] = []
     @State private var didFinish = false
 
-    init(recipe: Recipe? = nil) {
+    init(
+        recipe: Recipe? = nil,
+        onCreateRecipe: @escaping (UUID) -> Void = { _ in }
+    ) {
         self.recipe = recipe
+        self.onCreateRecipe = onCreateRecipe
         _name = State(initialValue: recipe?.name ?? "")
         _method = State(initialValue: recipe?.method ?? "")
         _cookingTimeMinutes = State(initialValue: recipe?.cookingTimeMinutes ?? 0)
@@ -124,15 +129,15 @@ struct RecipeFormView: View {
             recipe.serves = serves
             recipe.mealType = mealType
         } else {
-            modelContext.insert(
-                Recipe(
-                    name: trimmedName,
-                    method: method.trimmingCharacters(in: .whitespacesAndNewlines),
-                    cookingTimeMinutes: cookingTimeMinutes,
-                    serves: serves,
-                    mealType: mealType
-                )
+            let newRecipe = Recipe(
+                name: trimmedName,
+                method: method.trimmingCharacters(in: .whitespacesAndNewlines),
+                cookingTimeMinutes: cookingTimeMinutes,
+                serves: serves,
+                mealType: mealType
             )
+            modelContext.insert(newRecipe)
+            onCreateRecipe(newRecipe.id)
         }
 
         cleanupTemporaryMealTypes(keeping: mealType?.id)
