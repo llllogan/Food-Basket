@@ -8,11 +8,19 @@
 import SwiftUI
 import SwiftData
 
+private enum IngredientListTransitionSource: Hashable {
+    case addIngredientToolbar
+    case addIngredientEmptyState
+    case addIngredientFilteredEmptyState
+}
+
 struct IngredientsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Ingredient.name) private var ingredients: [Ingredient]
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
+    @Namespace private var ingredientListTransitionNamespace
     @State private var showingAddIngredient = false
+    @State private var addIngredientTransitionSource: IngredientListTransitionSource = .addIngredientToolbar
     @State private var searchText = ""
     @State private var selectedCategoryFilterID: UUID?
     @State private var recipeFilter = IngredientRecipeFilter.all
@@ -98,6 +106,32 @@ struct IngredientsView: View {
         return selectedCategory.name
     }
 
+    @ViewBuilder
+    private func zoomTransitionSource<Content: View>(
+        id: IngredientListTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .matchedTransitionSource(id: id, in: ingredientListTransitionNamespace)
+        } else {
+            content()
+        }
+    }
+
+    @ViewBuilder
+    private func zoomTransitionDestination<Content: View>(
+        id: IngredientListTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .navigationTransition(.zoom(sourceID: id, in: ingredientListTransitionNamespace))
+        } else {
+            content()
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -107,10 +141,13 @@ struct IngredientsView: View {
                     } description: {
                         Text("Add ingredients directly, or they will appear here as you create recipes.")
                     } actions: {
-                        Button("Add Ingredient") {
-                            showingAddIngredient = true
+                        zoomTransitionSource(id: .addIngredientEmptyState) {
+                            Button("Add Ingredient") {
+                                addIngredientTransitionSource = .addIngredientEmptyState
+                                showingAddIngredient = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
                     .listRowSeparator(.hidden)
                     .listRowInsets(emptyStateInsets)
@@ -120,10 +157,13 @@ struct IngredientsView: View {
                     } description: {
                         Text("Try another search, clear the current filters, or add a new ingredient.")
                     } actions: {
-                        Button("Add Ingredient") {
-                            showingAddIngredient = true
+                        zoomTransitionSource(id: .addIngredientFilteredEmptyState) {
+                            Button("Add Ingredient") {
+                                addIngredientTransitionSource = .addIngredientFilteredEmptyState
+                                showingAddIngredient = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
 
                         Button("Show All Ingredients") {
                             clearIngredientFilters()
@@ -171,16 +211,21 @@ struct IngredientsView: View {
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddIngredient = true
-                    } label: {
-                        Label("Add Ingredient", systemImage: "plus")
+                    zoomTransitionSource(id: .addIngredientToolbar) {
+                        Button {
+                            addIngredientTransitionSource = .addIngredientToolbar
+                            showingAddIngredient = true
+                        } label: {
+                            Label("Add Ingredient", systemImage: "plus")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $showingAddIngredient) {
-                NavigationStack {
-                    IngredientFormView()
+                zoomTransitionDestination(id: addIngredientTransitionSource) {
+                    NavigationStack {
+                        IngredientFormView()
+                    }
                 }
             }
         }

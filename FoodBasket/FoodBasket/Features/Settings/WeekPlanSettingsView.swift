@@ -19,6 +19,8 @@ struct WeekPlanSettingsView: View {
     @State private var isUpdatingCalendar = false
     @State private var exportAlert: ReminderExportAlert?
     @State private var ingredientImagePromptDraft = IngredientImagePromptDefaults.savedTemplate
+    @State private var ingredientImagePromptBeforeEditing: String?
+    @FocusState private var isEditingIngredientImagePrompt
 
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
@@ -81,14 +83,19 @@ struct WeekPlanSettingsView: View {
             .navigationTitle("Settings")
             .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
+                if isEditingIngredientImagePrompt {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(role: .cancel) {
+                            cancelIngredientImagePromptEditing()
+                        }
+                    }
+                }
+
                 if hasIngredientImagePromptChanges {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
+                        Button(role: .confirm) {
                             saveIngredientImagePrompt()
-                        } label: {
-                            Label("Save Image Prompt", systemImage: "checkmark")
                         }
-                        .buttonStyle(.borderedProminent)
                         .disabled(!canSaveIngredientImagePrompt)
                     }
                 }
@@ -119,6 +126,13 @@ struct WeekPlanSettingsView: View {
             }
             .onAppear {
                 ingredientImagePromptDraft = ingredientImagePromptTemplate
+            }
+            .onChange(of: isEditingIngredientImagePrompt) { _, isEditing in
+                if isEditing {
+                    ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
+                } else {
+                    ingredientImagePromptBeforeEditing = nil
+                }
             }
         }
     }
@@ -218,6 +232,7 @@ struct WeekPlanSettingsView: View {
             .lineLimit(3...6)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
+            .focused($isEditingIngredientImagePrompt)
 
             Button(role: .destructive) {
                 resetIngredientImagePrompt()
@@ -324,11 +339,18 @@ struct WeekPlanSettingsView: View {
     private func saveIngredientImagePrompt() {
         guard canSaveIngredientImagePrompt else { return }
         ingredientImagePromptTemplate = ingredientImagePromptDraft
+        ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
+    }
+
+    private func cancelIngredientImagePromptEditing() {
+        ingredientImagePromptDraft = ingredientImagePromptBeforeEditing ?? ingredientImagePromptTemplate
+        isEditingIngredientImagePrompt = false
     }
 
     private func resetIngredientImagePrompt() {
         ingredientImagePromptDraft = IngredientImagePromptDefaults.defaultTemplate
         ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
+        ingredientImagePromptBeforeEditing = IngredientImagePromptDefaults.defaultTemplate
     }
 
     private func showCalendarError(_ error: Error) {

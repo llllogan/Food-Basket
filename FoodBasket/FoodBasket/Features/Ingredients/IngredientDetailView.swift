@@ -26,6 +26,7 @@ struct IngredientDetailView: View {
     @State private var newCategoryName = ""
     @State private var showingNewCategoryAlert = false
     @State private var showingImagePlayground = false
+    @State private var isPresentingImagePlayground = false
     @State private var showingCamera = false
     @State private var showingCameraUnavailable = false
     @State private var showingDeleteConfirmation = false
@@ -133,46 +134,25 @@ struct IngredientDetailView: View {
                 .tint(.red)
             }
 
-            if #available(iOS 18.0, *) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        takePhoto()
-                    } label: {
-                        Label("Take Ingredient Photo", systemImage: "camera")
-                    }
-                }
-                .matchedTransitionSource(id: IngredientDetailTransitionSource.takePhoto, in: ingredientDetailTransitionNamespace)
-            } else {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        takePhoto()
-                    } label: {
-                        Label("Take Ingredient Photo", systemImage: "camera")
-                    }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    takePhoto()
+                } label: {
+                    Label("Take Ingredient Photo", systemImage: "camera")
                 }
             }
+            .matchedTransitionSource(id: IngredientDetailTransitionSource.takePhoto, in: ingredientDetailTransitionNamespace)
 
             if supportsImagePlayground {
-                if #available(iOS 18.0, *) {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showImagePlayground()
-                        } label: {
-                            Label("Generate Image", image: "custom.photo.badge.sparkles")
-                        }
-                        .disabled(!canGenerateIngredientImage)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showImagePlayground()
+                    } label: {
+                        generateImageButtonLabel
                     }
-                    .matchedTransitionSource(id: IngredientDetailTransitionSource.generateImage, in: ingredientDetailTransitionNamespace)
-                } else {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showImagePlayground()
-                        } label: {
-                            Label("Generate Image", image: "custom.photo.badge.sparkles")
-                        }
-                        .disabled(!canGenerateIngredientImage)
-                    }
+                    .disabled(!canGenerateIngredientImage || isPresentingImagePlayground)
                 }
+                .matchedTransitionSource(id: IngredientDetailTransitionSource.generateImage, in: ingredientDetailTransitionNamespace)
             }
         }
         .alert("Delete Ingredient?", isPresented: $showingDeleteConfirmation) {
@@ -203,20 +183,32 @@ struct IngredientDetailView: View {
                 .ignoresSafeArea()
             }
         }
-        .fullScreenCover(isPresented: $showingImagePlayground) {
-            zoomTransitionDestination(id: .generateImage) {
-                IngredientImagePlaygroundControllerView(
-                    isPresented: $showingImagePlayground,
-                    concept: imagePlaygroundPrompt,
-                    onCompletion: applyGeneratedImage(at:)
-                )
-                .ignoresSafeArea()
+        .imagePlaygroundSheet(
+            isPresented: $showingImagePlayground,
+            concept: imagePlaygroundPrompt
+        ) { imageURL in
+            applyGeneratedImage(at: imageURL)
+        }
+        .imagePlaygroundGenerationStyle(.illustration, in: [.illustration])
+        .onChange(of: showingImagePlayground) { _, isPresented in
+            if !isPresented {
+                isPresentingImagePlayground = false
             }
         }
         .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("A camera is not available on this device.")
+        }
+    }
+
+    @ViewBuilder
+    private var generateImageButtonLabel: some View {
+        if isPresentingImagePlayground {
+            ProgressView()
+                .controlSize(.regular)
+        } else {
+            Label("Generate Image", image: "custom.photo.badge.sparkles")
         }
     }
 
@@ -239,7 +231,8 @@ struct IngredientDetailView: View {
     }
 
     private func showImagePlayground() {
-        guard canGenerateIngredientImage else { return }
+        guard canGenerateIngredientImage, !isPresentingImagePlayground else { return }
+        isPresentingImagePlayground = true
         showingImagePlayground = true
     }
 
@@ -282,50 +275,6 @@ struct IngredientDetailView: View {
     }
 }
 
-private struct IngredientImagePlaygroundControllerView: UIViewControllerRepresentable {
-    @Binding var isPresented: Bool
-    let concept: String
-    let onCompletion: (URL) -> Void
-
-    func makeUIViewController(context: Context) -> ImagePlaygroundViewController {
-        let viewController = ImagePlaygroundViewController()
-        viewController.concepts = [.text(concept)]
-        viewController.selectedGenerationStyle = .illustration
-        viewController.allowedGenerationStyles = [.illustration]
-        viewController.delegate = context.coordinator
-        return viewController
-    }
-
-    func updateUIViewController(_ uiViewController: ImagePlaygroundViewController, context: Context) {
-        uiViewController.concepts = [.text(concept)]
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(isPresented: $isPresented, onCompletion: onCompletion)
-    }
-
-    final class Coordinator: NSObject, ImagePlaygroundViewController.Delegate {
-        @Binding private var isPresented: Bool
-        private let onCompletion: (URL) -> Void
-
-        init(isPresented: Binding<Bool>, onCompletion: @escaping (URL) -> Void) {
-            _isPresented = isPresented
-            self.onCompletion = onCompletion
-        }
-
-        func imagePlaygroundViewController(
-            _ imagePlaygroundViewController: ImagePlaygroundViewController,
-            didCreateImageAt imageURL: URL
-        ) {
-            onCompletion(imageURL)
-            isPresented = false
-        }
-
-        func imagePlaygroundViewControllerDidCancel(_ imagePlaygroundViewController: ImagePlaygroundViewController) {
-            isPresented = false
-        }
-    }
-}
 
 private struct IngredientRecipesView: View {
     let ingredient: Ingredient

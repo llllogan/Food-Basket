@@ -9,14 +9,22 @@ import SwiftUI
 import SwiftData
 import UIKit
 
+private enum RecipeListTransitionSource: Hashable {
+    case addRecipeToolbar
+    case addRecipeEmptyState
+    case addRecipeFilteredEmptyState
+}
+
 struct RecipesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
     @Query(sort: \MealType.name) private var mealTypes: [MealType]
     @Binding private var selectedRecipeID: UUID?
     private let onOpenThisWeekCalendar: (Set<UUID>) -> Void
+    @Namespace private var recipeListTransitionNamespace
     @State private var navigationPath = NavigationPath()
     @State private var showingAddRecipe = false
+    @State private var addRecipeTransitionSource: RecipeListTransitionSource = .addRecipeToolbar
     @State private var showingImportRecipeAlert = false
     @State private var importURLText = ""
     @State private var isImportingRecipe = false
@@ -59,6 +67,32 @@ struct RecipesView: View {
         return selectedMealType.name
     }
 
+    @ViewBuilder
+    private func zoomTransitionSource<Content: View>(
+        id: RecipeListTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .matchedTransitionSource(id: id, in: recipeListTransitionNamespace)
+        } else {
+            content()
+        }
+    }
+
+    @ViewBuilder
+    private func zoomTransitionDestination<Content: View>(
+        id: RecipeListTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .navigationTransition(.zoom(sourceID: id, in: recipeListTransitionNamespace))
+        } else {
+            content()
+        }
+    }
+
     private var filteredRecipes: [Recipe] {
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let searchMatchedRecipes: [Recipe]
@@ -93,10 +127,13 @@ struct RecipesView: View {
                     } description: {
                         Text("Add recipes manually or import one from a URL to start planning meals.")
                     } actions: {
-                        Button("Add Recipe") {
-                            showingAddRecipe = true
+                        zoomTransitionSource(id: .addRecipeEmptyState) {
+                            Button("Add Recipe") {
+                                addRecipeTransitionSource = .addRecipeEmptyState
+                                showingAddRecipe = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
                     .listRowSeparator(.hidden)
                     .listRowInsets(emptyStateInsets)
@@ -106,10 +143,13 @@ struct RecipesView: View {
                     } description: {
                         Text("Try another search, clear the current filters, or add a new recipe.")
                     } actions: {
-                        Button("Add Recipe") {
-                            showingAddRecipe = true
+                        zoomTransitionSource(id: .addRecipeFilteredEmptyState) {
+                            Button("Add Recipe") {
+                                addRecipeTransitionSource = .addRecipeFilteredEmptyState
+                                showingAddRecipe = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
 
                         Button("Show All Recipes") {
                             searchText = ""
@@ -159,28 +199,33 @@ struct RecipesView: View {
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            showingAddRecipe = true
-                        } label: {
-                            Label("Add Manually", systemImage: "square.and.pencil")
-                        }
+                    zoomTransitionSource(id: .addRecipeToolbar) {
+                        Menu {
+                            Button {
+                                addRecipeTransitionSource = .addRecipeToolbar
+                                showingAddRecipe = true
+                            } label: {
+                                Label("Add Manually", systemImage: "square.and.pencil")
+                            }
 
-                        Button {
-                            showingImportRecipeAlert = true
+                            Button {
+                                showingImportRecipeAlert = true
+                            } label: {
+                                Label("Add from URL", systemImage: "link.badge.plus")
+                            }
+                            .disabled(isImportingRecipe)
                         } label: {
-                            Label("Add from URL", systemImage: "link.badge.plus")
+                            Label("Add Recipe", systemImage: "plus")
                         }
-                        .disabled(isImportingRecipe)
-                    } label: {
-                        Label("Add Recipe", systemImage: "plus")
                     }
                 }
                 
             }
             .sheet(isPresented: $showingAddRecipe) {
-                NavigationStack {
-                    RecipeFormView()
+                zoomTransitionDestination(id: addRecipeTransitionSource) {
+                    NavigationStack {
+                        RecipeFormView()
+                    }
                 }
             }
             .alert("Import Recipe", isPresented: $showingImportRecipeAlert) {

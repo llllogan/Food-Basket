@@ -450,30 +450,17 @@ struct RecipeDetailView: View {
 
         ToolbarSpacer(.fixed, placement: .topBarTrailing)
         
-        ToolbarItem(placement: .topBarTrailing) {
-            Button(role: .destructive) {
-                activeAlert = .deleteConfirmation
-            } label: {
-                Label("Delete Recipe", systemImage: "trash")
+        if #available(iOS 27.0, *) {
+            ToolbarOverflowMenu {
+                recipeOverflowMenuActions
             }
-            .tint(.red)
-        }
-
-        if let externalURL {
+        } else {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    openURL(externalURL)
+                Menu {
+                    recipeOverflowMenuActions
                 } label: {
-                    Label("Open Recipe Website", systemImage: "safari")
+                    Label("More Recipe Actions", systemImage: "ellipsis")
                 }
-            }
-        }
-
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                takePhoto()
-            } label: {
-                Label("Take Meal Photo", systemImage: "camera")
             }
         }
 
@@ -486,6 +473,35 @@ struct RecipeDetailView: View {
                     Label("Add Ingredient", image: "custom.carrot.badge.plus")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var recipeOverflowMenuActions: some View {
+        Button {
+            takePhoto()
+        } label: {
+            Label("Take Meal Photo", systemImage: "camera")
+        }
+
+        if let externalURL {
+            Button {
+                openURL(externalURL)
+            } label: {
+                Label("Open Recipe Website", systemImage: "safari")
+            }
+
+            ShareLink(item: externalURL) {
+                Label("Share Recipe URL", systemImage: "square.and.arrow.up")
+            }
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            activeAlert = .deleteConfirmation
+        } label: {
+            Label("Delete Recipe", systemImage: "trash")
         }
     }
 
