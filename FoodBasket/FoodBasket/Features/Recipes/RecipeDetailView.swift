@@ -104,6 +104,14 @@ struct RecipeDetailView: View {
         "recipe:\(recipe.id.uuidString)"
     }
 
+    private var reminderOverflowMenuTitle: String {
+        guard let rememberedReminderList else {
+            return "Add to Reminders"
+        }
+
+        return "Add to \(rememberedReminderList.title)"
+    }
+
     private var foodBasketWeekStartDay: WeekStartDay {
         WeekStartDay.foodBasketCalendarStartDay(
             removeMealsAtNewWeek: removeMealsAtNewWeek,
@@ -530,6 +538,13 @@ struct RecipeDetailView: View {
     @ViewBuilder
     private var recipeOverflowMenuActions: some View {
         Button {
+            addToDefaultReminderListOrChooseList()
+        } label: {
+            Label(reminderOverflowMenuTitle, systemImage: "square.and.arrow.up")
+        }
+        .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
+
+        Button {
             takePhoto()
         } label: {
             Label("Take Meal Photo", systemImage: "camera")
@@ -933,6 +948,14 @@ struct RecipeDetailView: View {
         line.recipe?.ingredientLines?.removeAll { $0.id == line.id }
         modelContext.delete(line)
         try? modelContext.save()
+    }
+
+    private func addToDefaultReminderListOrChooseList() {
+        if let rememberedReminderList {
+            addReminders(to: rememberedReminderList)
+        } else {
+            prepareReminderListSelection()
+        }
     }
 
     private func prepareReminderListSelection() {
