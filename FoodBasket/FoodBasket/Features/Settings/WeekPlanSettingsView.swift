@@ -18,8 +18,6 @@ struct WeekPlanSettingsView: View {
     @State private var showingSyncCalendarPicker = false
     @State private var isUpdatingCalendar = false
     @State private var exportAlert: ReminderExportAlert?
-    @State private var showingResetIngredientImagePromptConfirmation = false
-    @State private var showingResetRecipeImagePromptConfirmation = false
     @State private var ingredientImagePromptDraft = IngredientImagePromptDefaults.savedTemplate
     @State private var ingredientImagePromptBeforeEditing: String?
     @State private var recipeImagePromptDraft = RecipeImagePromptDefaults.savedTemplate
@@ -45,10 +43,6 @@ struct WeekPlanSettingsView: View {
 
     init(onOpenThisWeekCalendar: @escaping () -> Void = {}) {
         self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
-    }
-
-    private var excludedCalendarMealTypeIDs: Set<UUID> {
-        WeekPlanCalendarFilterDefaults.mealTypeIDs(from: excludedCalendarMealTypeIDsRaw)
     }
 
     private var selectedSyncCalendar: CalendarListOption? {
@@ -101,29 +95,75 @@ struct WeekPlanSettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                settingsRows
-            }
-            .navigationTitle("Settings")
-            .toolbarTitleDisplayMode(.inlineLarge)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar {
-                if isEditingIngredientImagePrompt || isEditingRecipeImagePrompt {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(role: .cancel) {
-                            cancelImagePromptEditing()
+                Section("This Week Settings") {
+                    NavigationLink {
+                        ThisWeekSettingsGroup(
+                            mealTypes: mealTypes,
+                            removeMealsAtNewWeek: $removeMealsAtNewWeek,
+                            weekStartDay: $weekStartDay,
+                            excludedCalendarMealTypeIDsRaw: $excludedCalendarMealTypeIDsRaw,
+                            excludeCalendarMealsWithoutMealType: $excludeCalendarMealsWithoutMealType,
+                            onOpenThisWeekCalendar: onOpenThisWeekCalendar
+                        )
+                    } label: {
+                        Label("View and weekly cleanup", systemImage: "refrigerator")
+                    }
+                }
+
+                Section("Image Generation") {
+                    NavigationLink {
+                        ImageGenerationSettingsGroup(
+                            ingredientImagePromptDraft: $ingredientImagePromptDraft,
+                            ingredientImagePromptTemplate: $ingredientImagePromptTemplate,
+                            recipeImagePromptDraft: $recipeImagePromptDraft,
+                            recipeImagePromptTemplate: $recipeImagePromptTemplate,
+                            isEditingIngredientImagePrompt: $isEditingIngredientImagePrompt,
+                            isEditingRecipeImagePrompt: $isEditingRecipeImagePrompt,
+                            hasImagePromptChanges: hasImagePromptChanges,
+                            canSaveImagePrompts: canSaveImagePrompts,
+                            onSaveImagePrompts: saveImagePrompts,
+                            onCancelImagePromptEditing: cancelImagePromptEditing,
+                            onResetIngredientImagePrompt: resetIngredientImagePrompt,
+                            onResetRecipeImagePrompt: resetRecipeImagePrompt
+                        )
+                    } label: {
+                        Label {
+                            Text("Configure prompts")
+                        } icon: {
+                            Image("custom.photo.badge.sparkles")
+                                .foregroundColor(.purple)
+                                .padding(.bottom, -4)
                         }
                     }
                 }
 
-                if hasImagePromptChanges {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(role: .confirm) {
-                            saveImagePrompts()
+                Section("Calendar and Reminders Syncing") {
+                    NavigationLink {
+                        CalendarRemindersSyncSettingsGroup(
+                            syncToICal: $syncToICal,
+                            syncCalendarName: syncCalendarName,
+                            isUpdatingCalendar: isUpdatingCalendar,
+                            lastRemindersListID: lastRemindersListID,
+                            lastRemindersListName: lastRemindersListName,
+                            lastCalendarID: lastCalendarID,
+                            lastCalendarName: lastCalendarName,
+                            onChooseSyncCalendar: prepareSyncCalendarSelection,
+                            onClearDefaultRemindersList: clearDefaultRemindersList,
+                            onClearDefaultCalendar: clearDefaultCalendar
+                        )
+                    } label: {
+                        Label {
+                            Text("Update sync settings")
+                        } icon: {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.red)
                         }
-                        .disabled(!canSaveImagePrompts)
                     }
                 }
             }
+            .navigationTitle("Settings")
+            .toolbarTitleDisplayMode(.inlineLarge)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .listStyle(.insetGrouped)
             .sheet(isPresented: $showingSyncCalendarPicker) {
                 NavigationStack {
@@ -144,22 +184,6 @@ struct WeekPlanSettingsView: View {
                     message: Text(alert.message),
                     dismissButton: .default(Text("OK"))
                 )
-            }
-            .alert("Reset Image Prompt?", isPresented: $showingResetIngredientImagePromptConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Reset", role: .destructive) {
-                    resetIngredientImagePrompt()
-                }
-            } message: {
-                Text("This will replace your custom ingredient image generation prompt with the default prompt.")
-            }
-            .alert("Reset Recipe Image Prompt?", isPresented: $showingResetRecipeImagePromptConfirmation) {
-                Button("Cancel", role: .cancel) {}
-                Button("Reset", role: .destructive) {
-                    resetRecipeImagePrompt()
-                }
-            } message: {
-                Text("This will replace your custom recipe image generation prompt with the default prompt.")
             }
             .task(id: automaticCalendarSyncKey) {
                 await performCalendarAutomation()
@@ -182,198 +206,6 @@ struct WeekPlanSettingsView: View {
                     recipeImagePromptBeforeEditing = nil
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var settingsRows: some View {
-        iCalSyncSettingsSection
-        calendarViewSettingsSection
-        weeklyCleanupSettingsSection
-        ingredientImageSettingsSection
-        recipeImageSettingsSection
-        exportDefaultsSettingsSection
-    }
-
-    @ViewBuilder
-    private var iCalSyncSettingsSection: some View {
-        Section("Calendar Sync") {
-            Toggle("Sync scheduled meals to iCal", isOn: $syncToICal)
-
-            if syncToICal {
-                Button {
-                    prepareSyncCalendarSelection()
-                } label: {
-                    HStack {
-                        Text("Calendar")
-                            .foregroundStyle(.primary)
-                        Spacer()
-
-                        if isUpdatingCalendar {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text(syncCalendarName.isEmpty ? "Choose" : syncCalendarName)
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(isUpdatingCalendar)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var calendarViewSettingsSection: some View {
-        Section {
-            if mealTypes.isEmpty {
-                Text("Add meal types to recipes to filter the calendar view.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(mealTypes) { mealType in
-                    Toggle(mealType.name, isOn: calendarMealTypeBinding(for: mealType))
-                }
-            }
-
-            Toggle("No meal type", isOn: calendarMealsWithoutMealTypeBinding)
-        } header: {
-            HStack {
-                Text("Calendar View")
-                Spacer()
-                Button(action: onOpenThisWeekCalendar, label: {
-                    Text("View")
-                        .font(.subheadline.bold())
-                    Image(systemName: "chevron.right")
-                        .font(.caption.bold())
-                })
-            }
-        } footer: {
-            Text("Only selected meal types appear in the This Week calendar view.")
-        }
-    }
-
-    @ViewBuilder
-    private var weeklyCleanupSettingsSection: some View {
-        Section("Weekly Cleanup") {
-            Toggle("Remove scheduled meals at the start of a new week", isOn: $removeMealsAtNewWeek)
-
-            if removeMealsAtNewWeek {
-                Picker("Week starts", selection: $weekStartDay) {
-                    ForEach(WeekStartDay.allCases) { day in
-                        Text(day.title).tag(day.rawValue)
-                    }
-                }
-            }
-        }
-    }
-
-    private var ingredientImageSettingsSection: some View {
-        Section {
-            TextField(
-                "Image prompt",
-                text: $ingredientImagePromptDraft,
-                axis: .vertical
-            )
-            .lineLimit(3...6)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($isEditingIngredientImagePrompt)
-
-            Button(role: .destructive) {
-                showingResetIngredientImagePromptConfirmation = true
-            } label: {
-                HStack {
-                    Text("Reset Image Prompt")
-                    Spacer()
-                }
-            }
-            .disabled(
-                ingredientImagePromptTemplate == IngredientImagePromptDefaults.defaultTemplate
-                    && ingredientImagePromptDraft == IngredientImagePromptDefaults.defaultTemplate
-            )
-        } header: {
-            Text("Ingredient Images")
-        } footer: {
-            Text("The word 'ingredient_name' will be replaced with the ingredient being created.")
-        }
-    }
-
-    private var recipeImageSettingsSection: some View {
-        Section {
-            TextField(
-                "Image prompt",
-                text: $recipeImagePromptDraft,
-                axis: .vertical
-            )
-            .lineLimit(3...6)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .focused($isEditingRecipeImagePrompt)
-
-            Button(role: .destructive) {
-                showingResetRecipeImagePromptConfirmation = true
-            } label: {
-                HStack {
-                    Text("Reset Image Prompt")
-                    Spacer()
-                }
-            }
-            .disabled(
-                recipeImagePromptTemplate == RecipeImagePromptDefaults.defaultTemplate
-                    && recipeImagePromptDraft == RecipeImagePromptDefaults.defaultTemplate
-            )
-        } header: {
-            Text("Recipe Images")
-        } footer: {
-            Text("The word 'recipe_name' will be replaced with the recipe. You can also use 'ingredient_list'.")
-        }
-    }
-
-    private var exportDefaultsSettingsSection: some View {
-        Section {
-            Button(role: .destructive) {
-                clearDefaultRemindersList()
-            } label: {
-                defaultExportClearButtonLabel(
-                    title: "Clear Default Reminders List",
-                    currentValue: lastRemindersListName.isEmpty ? "Not set" : lastRemindersListName
-                )
-            }
-            .disabled(lastRemindersListID.isEmpty)
-
-            Button(role: .destructive) {
-                clearDefaultCalendar()
-            } label: {
-                defaultExportClearButtonLabel(
-                    title: "Clear Default Calendar",
-                    currentValue: lastCalendarName.isEmpty ? "Not set" : lastCalendarName
-                )
-            }
-            .disabled(lastCalendarID.isEmpty)
-        } header: {
-            Text("Export Defaults")
-        } footer: {
-            Text("Food Basket uses these defaults for quick grocery and calendar exports.")
-        }
-    }
-
-    private func defaultExportClearButtonLabel(
-        title: String,
-        currentValue: String
-    ) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                Text(currentValue)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
         }
     }
 
@@ -477,34 +309,6 @@ struct WeekPlanSettingsView: View {
         } catch {
             return
         }
-    }
-
-    private func calendarMealTypeBinding(for mealType: MealType) -> Binding<Bool> {
-        Binding {
-            !excludedCalendarMealTypeIDs.contains(mealType.id)
-        } set: { isIncluded in
-            setCalendarMealType(mealType, isIncluded: isIncluded)
-        }
-    }
-
-    private var calendarMealsWithoutMealTypeBinding: Binding<Bool> {
-        Binding {
-            !excludeCalendarMealsWithoutMealType
-        } set: { isIncluded in
-            excludeCalendarMealsWithoutMealType = !isIncluded
-        }
-    }
-
-    private func setCalendarMealType(_ mealType: MealType, isIncluded: Bool) {
-        var excludedIDs = excludedCalendarMealTypeIDs
-
-        if isIncluded {
-            excludedIDs.remove(mealType.id)
-        } else {
-            excludedIDs.insert(mealType.id)
-        }
-
-        excludedCalendarMealTypeIDsRaw = WeekPlanCalendarFilterDefaults.rawMealTypeIDs(from: excludedIDs)
     }
 }
 
