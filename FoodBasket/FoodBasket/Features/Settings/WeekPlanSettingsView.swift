@@ -160,6 +160,20 @@ struct WeekPlanSettingsView: View {
                         }
                     }
                 }
+                
+                Section {
+                    VStack(alignment: .center) {
+                        Text("Made with greate care")
+                        Text("by Logan")
+                        Text("for you")
+                        Text("🥑")
+                            .padding(.top, 4)
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 50)
+                }
+                .listRowBackground(Color(.clear))
             }
             .navigationTitle("Settings")
             .toolbarTitleDisplayMode(.inlineLarge)
