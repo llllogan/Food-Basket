@@ -18,9 +18,14 @@ struct WeekPlanSettingsView: View {
     @State private var showingSyncCalendarPicker = false
     @State private var isUpdatingCalendar = false
     @State private var exportAlert: ReminderExportAlert?
+    @State private var showingResetIngredientImagePromptConfirmation = false
+    @State private var showingResetRecipeImagePromptConfirmation = false
     @State private var ingredientImagePromptDraft = IngredientImagePromptDefaults.savedTemplate
     @State private var ingredientImagePromptBeforeEditing: String?
+    @State private var recipeImagePromptDraft = RecipeImagePromptDefaults.savedTemplate
+    @State private var recipeImagePromptBeforeEditing: String?
     @FocusState private var isEditingIngredientImagePrompt
+    @FocusState private var isEditingRecipeImagePrompt
 
     @AppStorage(CalendarListDefaults.idKey) private var lastCalendarID = ""
     @AppStorage(CalendarListDefaults.nameKey) private var lastCalendarName = ""
@@ -36,6 +41,7 @@ struct WeekPlanSettingsView: View {
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
     @AppStorage(IngredientImagePromptDefaults.templateKey) private var ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
+    @AppStorage(RecipeImagePromptDefaults.templateKey) private var recipeImagePromptTemplate = RecipeImagePromptDefaults.defaultTemplate
 
     init(onOpenThisWeekCalendar: @escaping () -> Void = {}) {
         self.onOpenThisWeekCalendar = onOpenThisWeekCalendar
@@ -61,8 +67,25 @@ struct WeekPlanSettingsView: View {
         ingredientImagePromptDraft != ingredientImagePromptTemplate
     }
 
+    private var hasRecipeImagePromptChanges: Bool {
+        recipeImagePromptDraft != recipeImagePromptTemplate
+    }
+
+    private var hasImagePromptChanges: Bool {
+        hasIngredientImagePromptChanges || hasRecipeImagePromptChanges
+    }
+
     private var canSaveIngredientImagePrompt: Bool {
         IngredientImagePromptDefaults.isValid(ingredientImagePromptDraft)
+    }
+
+    private var canSaveRecipeImagePrompt: Bool {
+        RecipeImagePromptDefaults.isValid(recipeImagePromptDraft)
+    }
+
+    private var canSaveImagePrompts: Bool {
+        (!hasIngredientImagePromptChanges || canSaveIngredientImagePrompt)
+            && (!hasRecipeImagePromptChanges || canSaveRecipeImagePrompt)
     }
 
     private var automaticCalendarSyncKey: String {
@@ -82,21 +105,22 @@ struct WeekPlanSettingsView: View {
             }
             .navigationTitle("Settings")
             .toolbarTitleDisplayMode(.inlineLarge)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                if isEditingIngredientImagePrompt {
+                if isEditingIngredientImagePrompt || isEditingRecipeImagePrompt {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(role: .cancel) {
-                            cancelIngredientImagePromptEditing()
+                            cancelImagePromptEditing()
                         }
                     }
                 }
 
-                if hasIngredientImagePromptChanges {
+                if hasImagePromptChanges {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(role: .confirm) {
-                            saveIngredientImagePrompt()
+                            saveImagePrompts()
                         }
-                        .disabled(!canSaveIngredientImagePrompt)
+                        .disabled(!canSaveImagePrompts)
                     }
                 }
             }
@@ -121,17 +145,41 @@ struct WeekPlanSettingsView: View {
                     dismissButton: .default(Text("OK"))
                 )
             }
+            .alert("Reset Image Prompt?", isPresented: $showingResetIngredientImagePromptConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset", role: .destructive) {
+                    resetIngredientImagePrompt()
+                }
+            } message: {
+                Text("This will replace your custom ingredient image generation prompt with the default prompt.")
+            }
+            .alert("Reset Recipe Image Prompt?", isPresented: $showingResetRecipeImagePromptConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset", role: .destructive) {
+                    resetRecipeImagePrompt()
+                }
+            } message: {
+                Text("This will replace your custom recipe image generation prompt with the default prompt.")
+            }
             .task(id: automaticCalendarSyncKey) {
                 await performCalendarAutomation()
             }
             .onAppear {
                 ingredientImagePromptDraft = ingredientImagePromptTemplate
+                recipeImagePromptDraft = recipeImagePromptTemplate
             }
             .onChange(of: isEditingIngredientImagePrompt) { _, isEditing in
                 if isEditing {
                     ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
                 } else {
                     ingredientImagePromptBeforeEditing = nil
+                }
+            }
+            .onChange(of: isEditingRecipeImagePrompt) { _, isEditing in
+                if isEditing {
+                    recipeImagePromptBeforeEditing = recipeImagePromptDraft
+                } else {
+                    recipeImagePromptBeforeEditing = nil
                 }
             }
         }
@@ -143,6 +191,7 @@ struct WeekPlanSettingsView: View {
         calendarViewSettingsSection
         weeklyCleanupSettingsSection
         ingredientImageSettingsSection
+        recipeImageSettingsSection
         exportDefaultsSettingsSection
     }
 
@@ -235,7 +284,7 @@ struct WeekPlanSettingsView: View {
             .focused($isEditingIngredientImagePrompt)
 
             Button(role: .destructive) {
-                resetIngredientImagePrompt()
+                showingResetIngredientImagePromptConfirmation = true
             } label: {
                 HStack {
                     Text("Reset Image Prompt")
@@ -250,6 +299,37 @@ struct WeekPlanSettingsView: View {
             Text("Ingredient Images")
         } footer: {
             Text("The word 'ingredient_name' will be replaced with the ingredient being created.")
+        }
+    }
+
+    private var recipeImageSettingsSection: some View {
+        Section {
+            TextField(
+                "Image prompt",
+                text: $recipeImagePromptDraft,
+                axis: .vertical
+            )
+            .lineLimit(3...6)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .focused($isEditingRecipeImagePrompt)
+
+            Button(role: .destructive) {
+                showingResetRecipeImagePromptConfirmation = true
+            } label: {
+                HStack {
+                    Text("Reset Image Prompt")
+                    Spacer()
+                }
+            }
+            .disabled(
+                recipeImagePromptTemplate == RecipeImagePromptDefaults.defaultTemplate
+                    && recipeImagePromptDraft == RecipeImagePromptDefaults.defaultTemplate
+            )
+        } header: {
+            Text("Recipe Images")
+        } footer: {
+            Text("The word 'recipe_name' will be replaced with the recipe. You can also use 'ingredient_list'.")
         }
     }
 
@@ -336,21 +416,42 @@ struct WeekPlanSettingsView: View {
         lastRemindersListName = ""
     }
 
-    private func saveIngredientImagePrompt() {
-        guard canSaveIngredientImagePrompt else { return }
-        ingredientImagePromptTemplate = ingredientImagePromptDraft
-        ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
+    private func saveImagePrompts() {
+        guard canSaveImagePrompts else { return }
+
+        if hasIngredientImagePromptChanges {
+            ingredientImagePromptTemplate = ingredientImagePromptDraft
+            ingredientImagePromptBeforeEditing = ingredientImagePromptDraft
+        }
+
+        if hasRecipeImagePromptChanges {
+            recipeImagePromptTemplate = recipeImagePromptDraft
+            recipeImagePromptBeforeEditing = recipeImagePromptDraft
+        }
     }
 
-    private func cancelIngredientImagePromptEditing() {
-        ingredientImagePromptDraft = ingredientImagePromptBeforeEditing ?? ingredientImagePromptTemplate
-        isEditingIngredientImagePrompt = false
+    private func cancelImagePromptEditing() {
+        if isEditingIngredientImagePrompt {
+            ingredientImagePromptDraft = ingredientImagePromptBeforeEditing ?? ingredientImagePromptTemplate
+            isEditingIngredientImagePrompt = false
+        }
+
+        if isEditingRecipeImagePrompt {
+            recipeImagePromptDraft = recipeImagePromptBeforeEditing ?? recipeImagePromptTemplate
+            isEditingRecipeImagePrompt = false
+        }
     }
 
     private func resetIngredientImagePrompt() {
         ingredientImagePromptDraft = IngredientImagePromptDefaults.defaultTemplate
         ingredientImagePromptTemplate = IngredientImagePromptDefaults.defaultTemplate
         ingredientImagePromptBeforeEditing = IngredientImagePromptDefaults.defaultTemplate
+    }
+
+    private func resetRecipeImagePrompt() {
+        recipeImagePromptDraft = RecipeImagePromptDefaults.defaultTemplate
+        recipeImagePromptTemplate = RecipeImagePromptDefaults.defaultTemplate
+        recipeImagePromptBeforeEditing = RecipeImagePromptDefaults.defaultTemplate
     }
 
     private func showCalendarError(_ error: Error) {

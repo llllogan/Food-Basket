@@ -101,6 +101,7 @@ struct FoodBasketApp: App {
             "mealCleanupWeekStartDay",
             "ingredientListOrganiseMode",
             IngredientImagePromptDefaults.templateKey,
+            RecipeImagePromptDefaults.templateKey,
         ])
     }
 

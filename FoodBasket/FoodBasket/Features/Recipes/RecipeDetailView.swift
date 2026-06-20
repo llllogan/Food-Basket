@@ -8,18 +8,22 @@
 import LinkPresentation
 import SwiftData
 import SwiftUI
+import ImagePlayground
 import UIKit
 
 private enum RecipeDetailTransitionSource: Hashable {
     case editRecipe
     case addIngredientToolbar
     case addIngredientEmptyState
+    case addMethodEmptyState
+    case generateImage
 }
 
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(\.supportsImagePlayground) private var supportsImagePlayground
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
     @Query(sort: [
         SortDescriptor(\PlannedMealPortion.dayOffset),
@@ -33,6 +37,8 @@ struct RecipeDetailView: View {
     @State private var showingEditRecipe = false
     @State private var addIngredientTransitionSource: RecipeDetailTransitionSource = .addIngredientToolbar
     @State private var showingCamera = false
+    @State private var showingImagePlayground = false
+    @State private var isPresentingImagePlayground = false
     @State private var substitutedIngredientLine: RecipeIngredient?
     @State private var remindersExporter = RemindersExporter()
     @State private var reminderLists: [ReminderListOption] = []
@@ -55,6 +61,23 @@ struct RecipeDetailView: View {
 
     private var ingredientLines: [RecipeIngredient] {
         (recipe.ingredientLines ?? []).sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    private var trimmedRecipeName: String {
+        recipe.name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canGenerateRecipeImage: Bool {
+        supportsImagePlayground && !trimmedRecipeName.isEmpty
+    }
+
+    private var imagePlaygroundPrompt: String {
+        RecipeImagePlayground.prompt(
+            for: trimmedRecipeName,
+            ingredientNames: ingredientLines.compactMap { line in
+                line.ingredient?.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty }
+        )
     }
 
     private var hasMethod: Bool {
@@ -192,6 +215,7 @@ struct RecipeDetailView: View {
         }
     }
 
+
     var body: some View {
         recipeContent
             .navigationBarTitleDisplayMode(.inline)
@@ -214,8 +238,10 @@ struct RecipeDetailView: View {
                 }
             }
             .sheet(isPresented: $showingAddMethod) {
-                NavigationStack {
-                    RecipeMethodEditorView(recipe: recipe)
+                zoomTransitionDestination(id: .addMethodEmptyState) {
+                    NavigationStack {
+                        RecipeMethodEditorView(recipe: recipe)
+                    }
                 }
             }
             .sheet(isPresented: $showingReminderListPicker) {
@@ -239,6 +265,18 @@ struct RecipeDetailView: View {
                     try? modelContext.save()
                 }
                 .ignoresSafeArea()
+            }
+            .imagePlaygroundSheet(
+                isPresented: $showingImagePlayground,
+                concept: imagePlaygroundPrompt
+            ) { imageURL in
+                applyGeneratedImage(at: imageURL)
+            }
+            .imagePlaygroundGenerationStyle(.illustration, in: [.illustration])
+            .onChange(of: showingImagePlayground) { _, isPresented in
+                if !isPresented {
+                    isPresentingImagePlayground = false
+                }
             }
             .alert(item: $activeAlert) { alert in
                 recipeAlert(for: alert)
@@ -391,10 +429,12 @@ struct RecipeDetailView: View {
             if hasMethod {
                 Text(recipe.method)
             } else {
-                recipeDetailCTAButton(
-                    title: "Add Method"
-                ) {
-                    showingAddMethod = true
+                zoomTransitionSource(id: .addMethodEmptyState) {
+                    recipeDetailCTAButton(
+                        title: "Add Method"
+                    ) {
+                        showingAddMethod = true
+                    }
                 }
             }
         }
@@ -474,6 +514,17 @@ struct RecipeDetailView: View {
                 }
             }
         }
+
+        if isPresentingImagePlayground {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {} label: {
+                    ProgressView()
+                        .controlSize(.regular)
+                }
+                .disabled(true)
+                .accessibilityLabel("Loading Image Playground")
+            }
+        }
     }
 
     @ViewBuilder
@@ -482,6 +533,15 @@ struct RecipeDetailView: View {
             takePhoto()
         } label: {
             Label("Take Meal Photo", systemImage: "camera")
+        }
+
+        if supportsImagePlayground {
+            Button {
+                showImagePlayground()
+            } label: {
+                generateImageButtonLabel
+            }
+            .disabled(!canGenerateRecipeImage || isPresentingImagePlayground)
         }
 
         if let externalURL {
@@ -502,6 +562,16 @@ struct RecipeDetailView: View {
             activeAlert = .deleteConfirmation
         } label: {
             Label("Delete Recipe", systemImage: "trash")
+        }
+    }
+
+    @ViewBuilder
+    private var generateImageButtonLabel: some View {
+        if isPresentingImagePlayground {
+            ProgressView()
+                .controlSize(.regular)
+        } else {
+            Label("Generate Meal Photo", image: "custom.photo.badge.sparkles")
         }
     }
 
@@ -538,7 +608,7 @@ struct RecipeDetailView: View {
         Button {
             prepareReminderListSelection()
         } label: {
-            Label("Add to Reminders List", systemImage: "list.bullet")
+            Label("Add to Reminders", systemImage: "square.and.arrow.up")
         }
         .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
 
@@ -549,7 +619,9 @@ struct RecipeDetailView: View {
             Button {
                 addReminders(to: rememberedReminderList)
             } label: {
-                Label("Add to \(rememberedReminderList.title)", systemImage: "plus")
+                Text("Add to \(rememberedReminderList.title)")
+                Text("Reminders list")
+                Image(systemName: "plus")
             }
             .disabled(shoppingListLines.isEmpty || isUpdatingReminders)
 
@@ -842,6 +914,18 @@ struct RecipeDetailView: View {
         }
 
         showingCamera = true
+    }
+
+    private func showImagePlayground() {
+        guard canGenerateRecipeImage, !isPresentingImagePlayground else { return }
+        isPresentingImagePlayground = true
+        showingImagePlayground = true
+    }
+
+    private func applyGeneratedImage(at imageURL: URL) {
+        guard let photoData = RecipeImagePlayground.photoData(from: imageURL) else { return }
+        recipe.photoData = photoData
+        try? modelContext.save()
     }
 
     private func deleteIngredientLine(_ line: RecipeIngredient) {

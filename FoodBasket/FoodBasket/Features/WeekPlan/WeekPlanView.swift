@@ -9,6 +9,12 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private enum WeekPlanTransitionSource: Hashable {
+    case addMealToolbar
+    case addMealMealListEmptyState
+    case addMealGroceryListEmptyState
+}
+
 struct WeekPlanView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
@@ -22,7 +28,9 @@ struct WeekPlanView: View {
     @Binding private var highlightedPortionIDs: Set<UUID>
     @State private var localSelectedMode: WeekPlanDisplayMode
     private let externalSelectedMode: Binding<WeekPlanDisplayMode>?
+    @Namespace private var weekPlanTransitionNamespace
     @State private var showingAddMeal = false
+    @State private var addMealTransitionSource: WeekPlanTransitionSource = .addMealToolbar
     @State private var calendarExporter = CalendarEventExporter()
     @State private var calendarLists: [CalendarListOption] = []
     @State private var showingCalendarListPicker = false
@@ -87,6 +95,32 @@ struct WeekPlanView: View {
 
     private var selectedModeBinding: Binding<WeekPlanDisplayMode> {
         externalSelectedMode ?? $localSelectedMode
+    }
+
+    @ViewBuilder
+    private func zoomTransitionSource<Content: View>(
+        id: WeekPlanTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .matchedTransitionSource(id: id, in: weekPlanTransitionNamespace)
+        } else {
+            content()
+        }
+    }
+
+    @ViewBuilder
+    private func zoomTransitionDestination<Content: View>(
+        id: WeekPlanTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .navigationTransition(.zoom(sourceID: id, in: weekPlanTransitionNamespace))
+        } else {
+            content()
+        }
     }
 
     private var currentPlan: WeekPlan? {
@@ -286,16 +320,21 @@ struct WeekPlanView: View {
 
                 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddMeal = true
-                    } label: {
-                        Label("Add Meal", systemImage: "plus")
+                    zoomTransitionSource(id: .addMealToolbar) {
+                        Button {
+                            addMealTransitionSource = .addMealToolbar
+                            showingAddMeal = true
+                        } label: {
+                            Label("Add Meal", systemImage: "plus")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $showingAddMeal) {
-                NavigationStack {
-                    AddPlannedMealView(weekStarting: planWeekStarting)
+                zoomTransitionDestination(id: addMealTransitionSource) {
+                    NavigationStack {
+                        AddPlannedMealView(weekStarting: planWeekStarting)
+                    }
                 }
             }
             .sheet(isPresented: $showingCalendarListPicker) {
@@ -375,7 +414,7 @@ struct WeekPlanView: View {
                 Button {
                     prepareReminderListSelection()
                 } label: {
-                    Label("Choose Reminders List", systemImage: "list.bullet")
+                    Label("Add to Reminders", systemImage: "square.and.arrow.up")
                 }
                 .disabled(shoppingListLines.isEmpty)
 
@@ -385,7 +424,7 @@ struct WeekPlanView: View {
                     addReminders(to: rememberedReminderList)
                 } label: {
                     Text("Add to \(rememberedReminderList.title)")
-                    Text("default list")
+                    Text("Reminders list")
                     Image(systemName: "plus")
                 }
                 .disabled(shoppingListLines.isEmpty)
@@ -394,7 +433,7 @@ struct WeekPlanView: View {
                     clearReminders(from: rememberedReminderList)
                 } label: {
                     Text("Clear \(rememberedReminderList.title)")
-                    Text("remove Food Basket items")
+//                    Text("Remove Food Basket items")
                     Image(systemName: "trash")
                 }
             } label: {
@@ -462,10 +501,13 @@ struct WeekPlanView: View {
             } description: {
                 Text("Add recipes you want to cook this week, then assign their portions to days.")
             } actions: {
-                Button("Add Meal") {
-                    showingAddMeal = true
+                zoomTransitionSource(id: .addMealMealListEmptyState) {
+                    Button("Add Meal") {
+                        addMealTransitionSource = .addMealMealListEmptyState
+                        showingAddMeal = true
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
             .listRowSeparator(.hidden)
             .listRowInsets(emptyStateInsets)
@@ -628,10 +670,13 @@ struct WeekPlanView: View {
             } description: {
                 Text("Add meals to this week and Food Basket will collect the ingredients here.")
             } actions: {
-                Button("Add Meal") {
-                    showingAddMeal = true
+                zoomTransitionSource(id: .addMealGroceryListEmptyState) {
+                    Button("Add Meal") {
+                        addMealTransitionSource = .addMealGroceryListEmptyState
+                        showingAddMeal = true
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
             .listRowSeparator(.hidden)
             .listRowInsets(emptyStateInsets)
