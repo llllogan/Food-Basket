@@ -10,6 +10,11 @@ import SwiftUI
 import ImagePlayground
 import UIKit
 
+private enum IngredientDetailTransitionSource: Hashable {
+    case takePhoto
+    case generateImage
+}
+
 struct IngredientDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -17,6 +22,7 @@ struct IngredientDetailView: View {
     @Bindable var ingredient: Ingredient
     let recipeIngredientLine: RecipeIngredient?
     @Query(sort: \IngredientCategory.name) private var categories: [IngredientCategory]
+    @Namespace private var ingredientDetailTransitionNamespace
     @State private var newCategoryName = ""
     @State private var showingNewCategoryAlert = false
     @State private var showingImagePlayground = false
@@ -51,6 +57,19 @@ struct IngredientDetailView: View {
     ) {
         self.ingredient = ingredient
         self.recipeIngredientLine = recipeIngredientLine
+    }
+
+    @ViewBuilder
+    private func zoomTransitionDestination<Content: View>(
+        id: IngredientDetailTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .navigationTransition(.zoom(sourceID: id, in: ingredientDetailTransitionNamespace))
+        } else {
+            content()
+        }
     }
 
     var body: some View {
@@ -114,22 +133,45 @@ struct IngredientDetailView: View {
                 .tint(.red)
             }
 
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    takePhoto()
-                } label: {
-                    Label("Take Ingredient Photo", systemImage: "camera")
+            if #available(iOS 18.0, *) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        takePhoto()
+                    } label: {
+                        Label("Take Ingredient Photo", systemImage: "camera")
+                    }
+                }
+                .matchedTransitionSource(id: IngredientDetailTransitionSource.takePhoto, in: ingredientDetailTransitionNamespace)
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        takePhoto()
+                    } label: {
+                        Label("Take Ingredient Photo", systemImage: "camera")
+                    }
                 }
             }
 
             if supportsImagePlayground {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showImagePlayground()
-                    } label: {
-                        Label("Generate Image", image: "custom.photo.badge.sparkles")
+                if #available(iOS 18.0, *) {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showImagePlayground()
+                        } label: {
+                            Label("Generate Image", image: "custom.photo.badge.sparkles")
+                        }
+                        .disabled(!canGenerateIngredientImage)
                     }
-                    .disabled(!canGenerateIngredientImage)
+                    .matchedTransitionSource(id: IngredientDetailTransitionSource.generateImage, in: ingredientDetailTransitionNamespace)
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showImagePlayground()
+                        } label: {
+                            Label("Generate Image", image: "custom.photo.badge.sparkles")
+                        }
+                        .disabled(!canGenerateIngredientImage)
+                    }
                 }
             }
         }
@@ -153,19 +195,24 @@ struct IngredientDetailView: View {
             Button("Cancel", role: .cancel) {}
         }
         .fullScreenCover(isPresented: $showingCamera) {
-            CameraPicker { image in
-                ingredient.photoData = image.recipePhotoData
-                try? modelContext.save()
+            zoomTransitionDestination(id: .takePhoto) {
+                CameraPicker { image in
+                    ingredient.photoData = image.recipePhotoData
+                    try? modelContext.save()
+                }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
-        .imagePlaygroundSheet(
-            isPresented: $showingImagePlayground,
-            concept: imagePlaygroundPrompt
-        ) { imageURL in
-            applyGeneratedImage(at: imageURL)
+        .fullScreenCover(isPresented: $showingImagePlayground) {
+            zoomTransitionDestination(id: .generateImage) {
+                IngredientImagePlaygroundControllerView(
+                    isPresented: $showingImagePlayground,
+                    concept: imagePlaygroundPrompt,
+                    onCompletion: applyGeneratedImage(at:)
+                )
+                .ignoresSafeArea()
+            }
         }
-        .imagePlaygroundGenerationStyle(.illustration, in: [.illustration])
         .alert("Camera Unavailable", isPresented: $showingCameraUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -231,6 +278,51 @@ struct IngredientDetailView: View {
 
         return recipesByID.values.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+}
+
+private struct IngredientImagePlaygroundControllerView: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    let concept: String
+    let onCompletion: (URL) -> Void
+
+    func makeUIViewController(context: Context) -> ImagePlaygroundViewController {
+        let viewController = ImagePlaygroundViewController()
+        viewController.concepts = [.text(concept)]
+        viewController.selectedGenerationStyle = .illustration
+        viewController.allowedGenerationStyles = [.illustration]
+        viewController.delegate = context.coordinator
+        return viewController
+    }
+
+    func updateUIViewController(_ uiViewController: ImagePlaygroundViewController, context: Context) {
+        uiViewController.concepts = [.text(concept)]
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isPresented: $isPresented, onCompletion: onCompletion)
+    }
+
+    final class Coordinator: NSObject, ImagePlaygroundViewController.Delegate {
+        @Binding private var isPresented: Bool
+        private let onCompletion: (URL) -> Void
+
+        init(isPresented: Binding<Bool>, onCompletion: @escaping (URL) -> Void) {
+            _isPresented = isPresented
+            self.onCompletion = onCompletion
+        }
+
+        func imagePlaygroundViewController(
+            _ imagePlaygroundViewController: ImagePlaygroundViewController,
+            didCreateImageAt imageURL: URL
+        ) {
+            onCompletion(imageURL)
+            isPresented = false
+        }
+
+        func imagePlaygroundViewControllerDidCancel(_ imagePlaygroundViewController: ImagePlaygroundViewController) {
+            isPresented = false
         }
     }
 }

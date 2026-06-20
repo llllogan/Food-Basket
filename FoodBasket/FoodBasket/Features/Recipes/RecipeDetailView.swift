@@ -10,6 +10,12 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private enum RecipeDetailTransitionSource: Hashable {
+    case editRecipe
+    case addIngredientToolbar
+    case addIngredientEmptyState
+}
+
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -21,9 +27,11 @@ struct RecipeDetailView: View {
     ]) private var mealPortions: [PlannedMealPortion]
     let recipe: Recipe
     let onOpenThisWeekCalendar: (Set<UUID>) -> Void
+    @Namespace private var recipeDetailTransitionNamespace
     @State private var showingAddIngredient = false
     @State private var showingAddMethod = false
     @State private var showingEditRecipe = false
+    @State private var addIngredientTransitionSource: RecipeDetailTransitionSource = .addIngredientToolbar
     @State private var showingCamera = false
     @State private var substitutedIngredientLine: RecipeIngredient?
     @State private var remindersExporter = RemindersExporter()
@@ -158,6 +166,32 @@ struct RecipeDetailView: View {
         recipe.externalURL
     }
 
+    @ViewBuilder
+    private func zoomTransitionSource<Content: View>(
+        id: RecipeDetailTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .matchedTransitionSource(id: id, in: recipeDetailTransitionNamespace)
+        } else {
+            content()
+        }
+    }
+
+    @ViewBuilder
+    private func zoomTransitionDestination<Content: View>(
+        id: RecipeDetailTransitionSource,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            content()
+                .navigationTransition(.zoom(sourceID: id, in: recipeDetailTransitionNamespace))
+        } else {
+            content()
+        }
+    }
+
     var body: some View {
         recipeContent
             .navigationBarTitleDisplayMode(.inline)
@@ -166,13 +200,17 @@ struct RecipeDetailView: View {
                 recipeToolbar
             }
             .sheet(isPresented: $showingEditRecipe) {
-                NavigationStack {
-                    RecipeFormView(recipe: recipe)
+                zoomTransitionDestination(id: .editRecipe) {
+                    NavigationStack {
+                        RecipeFormView(recipe: recipe)
+                    }
                 }
             }
             .sheet(isPresented: $showingAddIngredient) {
-                NavigationStack {
-                    AddIngredientToRecipeView(recipe: recipe)
+                zoomTransitionDestination(id: addIngredientTransitionSource) {
+                    NavigationStack {
+                        AddIngredientToRecipeView(recipe: recipe)
+                    }
                 }
             }
             .sheet(isPresented: $showingAddMethod) {
@@ -329,10 +367,13 @@ struct RecipeDetailView: View {
     private var ingredientsSection: some View {
         Section("Ingredients") {
             if ingredientLines.isEmpty {
-                recipeDetailCTAButton(
-                    title: "Add Ingredient"
-                ) {
-                    showingAddIngredient = true
+                zoomTransitionSource(id: .addIngredientEmptyState) {
+                    recipeDetailCTAButton(
+                        title: "Add Ingredient"
+                    ) {
+                        addIngredientTransitionSource = .addIngredientEmptyState
+                        showingAddIngredient = true
+                    }
                 }
             } else {
                 ForEach(ingredientLines) { line in
@@ -398,10 +439,12 @@ struct RecipeDetailView: View {
     private var recipeToolbar: some ToolbarContent {
         
         ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingEditRecipe = true
-            } label: {
-                Text("Edit")
+            zoomTransitionSource(id: .editRecipe) {
+                Button {
+                    showingEditRecipe = true
+                } label: {
+                    Text("Edit")
+                }
             }
         }
 
@@ -435,10 +478,13 @@ struct RecipeDetailView: View {
         }
 
         ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingAddIngredient = true
-            } label: {
-                Label("Add Ingredient", image: "custom.carrot.badge.plus")
+            zoomTransitionSource(id: .addIngredientToolbar) {
+                Button {
+                    addIngredientTransitionSource = .addIngredientToolbar
+                    showingAddIngredient = true
+                } label: {
+                    Label("Add Ingredient", image: "custom.carrot.badge.plus")
+                }
             }
         }
     }
