@@ -47,6 +47,7 @@ struct RecipeDetailView: View {
     @State private var activeAlert: RecipeDetailAlert?
     @State private var showingLinkRecipeURLAlert = false
     @State private var linkedRecipeURLText = ""
+    @State private var recipeURLShareItem: RecipeURLShareItem?
     @State private var isScrubbingRating = false
     @AppStorage(ReminderListDefaults.idKey) private var lastRemindersListID = ""
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
@@ -283,6 +284,9 @@ struct RecipeDetailView: View {
                 NavigationStack {
                     SubstituteRecipeIngredientView(line: line)
                 }
+            }
+            .sheet(item: $recipeURLShareItem) { item in
+                RecipeURLActivityView(url: item.url)
             }
             .fullScreenCover(isPresented: $showingCamera) {
                 CameraPicker { image in
@@ -624,7 +628,9 @@ struct RecipeDetailView: View {
                 Label("Open Recipe Website", systemImage: "safari")
             }
 
-            ShareLink(item: externalURL) {
+            Button {
+                recipeURLShareItem = RecipeURLShareItem(url: externalURL)
+            } label: {
                 Label("Share Recipe URL", systemImage: "square.and.arrow.up")
             }
         }
@@ -1269,6 +1275,21 @@ struct RecipeDetailView: View {
     private func playRatingSelectionHaptic() {
         UISelectionFeedbackGenerator().selectionChanged()
     }
+}
+
+private struct RecipeURLShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+private struct RecipeURLActivityView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 private struct RecipeExternalURLPreviewRow: View {

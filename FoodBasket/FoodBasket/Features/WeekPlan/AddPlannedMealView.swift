@@ -10,7 +10,9 @@ import SwiftUI
 
 struct AddPlannedMealView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recipe.name) private var recipes: [Recipe]
+    @Query(sort: \WeekPlan.weekStarting) private var plans: [WeekPlan]
 
     let weekStarting: Date
     @State private var searchText = ""
@@ -35,16 +37,16 @@ struct AddPlannedMealView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(filteredRecipes) { recipe in
-                        NavigationLink {
-                            AddPlannedMealAmountView(weekStarting: weekStarting, recipe: recipe) {
-                                dismiss()
-                            }
+                        Button {
+                            addMeal(recipe)
                         } label: {
                             HStack(spacing: 12) {
                                 RecipeThumbnailView(photoData: recipe.photoData)
 
                                 Text(recipe.name)
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color(.label))
+
+                                Spacer()
                             }
                         }
                     }
@@ -65,6 +67,51 @@ struct AddPlannedMealView: View {
                 }
             }
         }
+    }
+
+    private func addMeal(_ recipe: Recipe) {
+        let plan = SeedData.weekPlan(
+            starting: weekStarting,
+            existing: plans,
+            in: modelContext
+        )
+        let meal = PlannedMeal(
+            quantityMultiplier: onePortionMultiplier(for: recipe),
+            sortOrder: plan.plannedMeals?.count ?? 0,
+            weekPlan: plan,
+            recipe: recipe
+        )
+        plan.plannedMeals = (plan.plannedMeals ?? []) + [meal]
+        modelContext.insert(meal)
+
+        let firstSortOrder = nextMondayPortionSortOrder(for: plan)
+        modelContext.insert(
+            PlannedMealPortion(
+                dayOffset: 0,
+                sortOrder: firstSortOrder,
+                weekPlan: plan,
+                plannedMeal: meal
+            )
+        )
+
+        try? modelContext.save()
+        _ = try? FoodBasketPlanSnapshotStore.refresh(in: modelContext)
+        FoodBasketWidgetTimelineReloader.reloadTimelines()
+        dismiss()
+    }
+
+    private func onePortionMultiplier(for recipe: Recipe) -> Double {
+        1.0 / Double(max(recipe.serves, 1))
+    }
+
+    private func nextMondayPortionSortOrder(for plan: WeekPlan) -> Int {
+        let portions = (try? modelContext.fetch(FetchDescriptor<PlannedMealPortion>())) ?? []
+        let maxSortOrder = portions
+            .filter { $0.weekPlan?.id == plan.id && $0.dayOffset == 0 }
+            .map(\.sortOrder)
+            .max()
+
+        return (maxSortOrder ?? -1) + 1
     }
 }
 
