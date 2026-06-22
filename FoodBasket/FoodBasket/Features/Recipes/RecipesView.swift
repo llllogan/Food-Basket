@@ -35,6 +35,7 @@ struct RecipesView: View {
     @State private var searchText = ""
     @State private var sortMode = RecipeListSortMode.name
     @State private var selectedMealTypeFilterID: UUID?
+    @State private var featuredRecipeIDs: [UUID] = []
 
     init(
         selectedRecipeID: Binding<UUID?> = .constant(nil),
@@ -119,9 +120,25 @@ struct RecipesView: View {
         return sortMode.sort(visibleRecipes)
     }
 
+    private var featuredRecipes: [Recipe] {
+        featuredRecipeIDs.compactMap { featuredRecipeID in
+            recipes.first(where: { $0.id == featuredRecipeID })
+        }
+    }
+
     var body: some View {
         NavigationStack(path: $navigationPath) {
             List {
+                if !featuredRecipes.isEmpty {
+                    FeaturedRecipesRow(recipes: featuredRecipes) { recipeID in
+                        navigationPath.append(recipeID)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(
+                        EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
+                    )
+                }
+
                 if recipes.isEmpty {
                     ContentUnavailableView {
                         Label("No Recipes Yet", systemImage: "book.closed")
@@ -260,7 +277,11 @@ struct RecipesView: View {
                 runningImportTask?.cancel()
             }
             .onAppear {
+                refreshFeaturedRecipes()
                 openSelectedRecipeIfNeeded()
+            }
+            .onChange(of: recipes.map(\.id)) { _, _ in
+                refreshFeaturedRecipes()
             }
             .onChange(of: selectedRecipeID) { _, _ in
                 openSelectedRecipeIfNeeded()
@@ -333,6 +354,21 @@ struct RecipesView: View {
         self.pendingCreatedRecipeID = nil
     }
 
+    private func refreshFeaturedRecipes() {
+        let availableRecipeIDs = Set(recipes.map(\.id))
+        let retainedRecipeIDs = featuredRecipeIDs.filter(availableRecipeIDs.contains)
+        let retainedRecipeIDSet = Set(retainedRecipeIDs)
+        let availableCandidates = recipes
+            .map(\.id)
+            .filter { !retainedRecipeIDSet.contains($0) }
+            .shuffled()
+        let openSlotCount = max(0, 4 - retainedRecipeIDs.count)
+
+        featuredRecipeIDs = Array(
+            (retainedRecipeIDs + availableCandidates.prefix(openSlotCount)).prefix(4)
+        )
+    }
+
     private func importRecipeFromURL() {
         importRecipe(from: importURL)
     }
@@ -396,6 +432,65 @@ struct RecipesView: View {
 
             modelContext.delete(recipe)
         }
+    }
+}
+
+private struct FeaturedRecipesRow: View {
+    let recipes: [Recipe]
+    let selectRecipe: (UUID) -> Void
+
+    private let columns = Array(
+        repeating: GridItem(.flexible(minimum: 0), spacing: 12, alignment: .top),
+        count: 2
+    )
+
+    var body: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(recipes) { recipe in
+                Button {
+                    selectRecipe(recipe.id)
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        FeaturedRecipeImage(photoData: recipe.photoData)
+
+                        Text(recipe.name)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct FeaturedRecipeImage: View {
+    let photoData: Data?
+
+    var body: some View {
+        GeometryReader { geometry in
+            Group {
+                if let image = photoData.flatMap(UIImage.init(data:)) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        Color(uiColor: .secondarySystemBackground)
+
+                        Image(systemName: "fork.knife")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
