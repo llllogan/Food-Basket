@@ -26,7 +26,7 @@ struct ThisWeekSettingsGroup: View {
                     Text("Add meal types to recipes to filter the calendar view.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(mealTypes) { mealType in
+                    ForEach(mealTypes, id: \.id) { mealType in
                         Toggle(mealType.name, isOn: calendarMealTypeBinding(for: mealType))
                     }
                 }

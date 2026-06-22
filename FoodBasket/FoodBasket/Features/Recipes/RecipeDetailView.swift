@@ -53,6 +53,7 @@ struct RecipeDetailView: View {
     @AppStorage(ReminderListDefaults.nameKey) private var lastRemindersListName = ""
     @AppStorage(WeekPlanAutomationDefaults.removeMealsAtNewWeekKey) private var removeMealsAtNewWeek = false
     @AppStorage(WeekPlanAutomationDefaults.weekStartDayKey) private var weekStartDay = WeekStartDay.monday.rawValue
+    @AppStorage(PinnedRecipeDefaults.recipeIDsKey) private var pinnedRecipeIDsRaw = ""
 
     init(
         recipe: Recipe,
@@ -89,6 +90,10 @@ struct RecipeDetailView: View {
 
     private var shoppingListLines: [ShoppingListLine] {
         ShoppingListLine.makeLines(for: recipe)
+    }
+
+    private var isPinned: Bool {
+        PinnedRecipeDefaults.recipeIDs(from: pinnedRecipeIDsRaw).contains(recipe.id)
     }
 
     private var rememberedReminderList: ReminderListOption? {
@@ -554,7 +559,20 @@ struct RecipeDetailView: View {
         }
 
         ToolbarSpacer(.fixed, placement: .topBarTrailing)
+
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                togglePinned()
+            } label: {
+                Label(
+                    isPinned ? "Unpin Recipe" : "Pin Recipe",
+                    systemImage: isPinned ? "pin.fill" : "pin"
+                )
+            }
+            .tint(isPinned ? Color(.yellow) : Color(.label))
+        }
         
+        #if compiler(>=6.4)
         if #available(iOS 27.0, *) {
             ToolbarOverflowMenu {
                 recipeOverflowMenuActions
@@ -568,6 +586,15 @@ struct RecipeDetailView: View {
                 }
             }
         }
+        #else
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                recipeOverflowMenuActions
+            } label: {
+                Label("More Recipe Actions", systemImage: "ellipsis")
+            }
+        }
+        #endif
 
         ToolbarItem(placement: .topBarTrailing) {
             zoomTransitionSource(id: .addIngredientToolbar) {
@@ -1238,6 +1265,12 @@ struct RecipeDetailView: View {
                 message: Text("The clipboard does not contain a recipe URL."),
                 dismissButton: .default(Text("OK"))
             )
+        case .pinLimitReached:
+            Alert(
+                title: Text("Four Recipes Already Pinned"),
+                message: Text("Unpin a recipe before pinning another one."),
+                dismissButton: .default(Text("OK"))
+            )
         case .deleteConfirmation:
             Alert(
                 title: Text("Delete Recipe?"),
@@ -1251,6 +1284,8 @@ struct RecipeDetailView: View {
     }
 
     private func deleteRecipe() {
+        removeFromPinnedRecipes()
+
         for plannedMeal in recipe.plannedMeals ?? [] {
             modelContext.delete(plannedMeal)
         }
@@ -1258,6 +1293,29 @@ struct RecipeDetailView: View {
         modelContext.delete(recipe)
         try? modelContext.save()
         dismiss()
+    }
+
+    private func togglePinned() {
+        var pinnedRecipeIDs = PinnedRecipeDefaults.recipeIDs(from: pinnedRecipeIDsRaw)
+
+        if let pinnedIndex = pinnedRecipeIDs.firstIndex(of: recipe.id) {
+            pinnedRecipeIDs.remove(at: pinnedIndex)
+        } else {
+            guard pinnedRecipeIDs.count < PinnedRecipeDefaults.maximumRecipeCount else {
+                activeAlert = .pinLimitReached
+                return
+            }
+
+            pinnedRecipeIDs.append(recipe.id)
+        }
+
+        pinnedRecipeIDsRaw = PinnedRecipeDefaults.rawValue(for: pinnedRecipeIDs)
+    }
+
+    private func removeFromPinnedRecipes() {
+        let pinnedRecipeIDs = PinnedRecipeDefaults.recipeIDs(from: pinnedRecipeIDsRaw)
+            .filter { $0 != recipe.id }
+        pinnedRecipeIDsRaw = PinnedRecipeDefaults.rawValue(for: pinnedRecipeIDs)
     }
 
     private func playGroceryMenuHaptic() {
@@ -1416,6 +1474,7 @@ private enum RecipeDetailAlert: Identifiable {
     case duplicateThisWeekUpdate(ThisWeekDuplicateUpdate)
     case export(ReminderExportAlert)
     case linkRecipeURLFailure
+    case pinLimitReached
     case deleteConfirmation
 
     var id: String {
@@ -1428,6 +1487,8 @@ private enum RecipeDetailAlert: Identifiable {
             "export-\(alert.id.uuidString)"
         case .linkRecipeURLFailure:
             "link-recipe-url-failure"
+        case .pinLimitReached:
+            "pin-limit-reached"
         case .deleteConfirmation:
             "delete-confirmation"
         }

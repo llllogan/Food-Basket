@@ -55,7 +55,7 @@ struct RecipeFormView: View {
                 Picker("Meal Type", selection: mealTypeSelection) {
                     Text("None").tag(nil as UUID?)
 
-                    ForEach(mealTypes) { mealType in
+                    ForEach(mealTypes, id: \.id) { mealType in
                         Text(mealType.name).tag(mealType.id as UUID?)
                     }
                 }

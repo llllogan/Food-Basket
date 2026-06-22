@@ -1426,7 +1426,7 @@ private struct WeekPlanMealTypeSelectionView: View {
                     mealTypeRow(title: "None", isSelected: selectedMealTypeID == nil)
                 }
 
-                ForEach(mealTypes) { mealType in
+                ForEach(mealTypes, id: \.id) { mealType in
                     Button {
                         onSelect(mealType)
                         dismiss()

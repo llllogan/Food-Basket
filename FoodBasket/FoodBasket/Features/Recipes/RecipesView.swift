@@ -9,6 +9,33 @@ import SwiftUI
 import SwiftData
 import UIKit
 
+enum PinnedRecipeDefaults {
+    static let recipeIDsKey = "pinnedRecipeIDs"
+    static let maximumRecipeCount = 4
+
+    static func recipeIDs(from rawValue: String) -> [UUID] {
+        var seenIDs = Set<UUID>()
+
+        return rawValue
+            .split(separator: ",")
+            .compactMap {
+                UUID(
+                    uuidString: $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            }
+            .filter { seenIDs.insert($0).inserted }
+            .prefix(maximumRecipeCount)
+            .map { $0 }
+    }
+
+    static func rawValue(for recipeIDs: [UUID]) -> String {
+        recipeIDs
+            .prefix(maximumRecipeCount)
+            .map(\.uuidString)
+            .joined(separator: ",")
+    }
+}
+
 private enum RecipeListTransitionSource: Hashable {
     case addRecipeToolbar
     case addRecipeEmptyState
@@ -35,7 +62,7 @@ struct RecipesView: View {
     @State private var searchText = ""
     @State private var sortMode = RecipeListSortMode.name
     @State private var selectedMealTypeFilterID: UUID?
-    @State private var featuredRecipeIDs: [UUID] = []
+    @AppStorage(PinnedRecipeDefaults.recipeIDsKey) private var pinnedRecipeIDsRaw = ""
 
     init(
         selectedRecipeID: Binding<UUID?> = .constant(nil),
@@ -120,23 +147,23 @@ struct RecipesView: View {
         return sortMode.sort(visibleRecipes)
     }
 
-    private var featuredRecipes: [Recipe] {
-        featuredRecipeIDs.compactMap { featuredRecipeID in
-            recipes.first(where: { $0.id == featuredRecipeID })
+    private var pinnedRecipes: [Recipe] {
+        PinnedRecipeDefaults.recipeIDs(from: pinnedRecipeIDsRaw).compactMap { pinnedRecipeID in
+            recipes.first(where: { $0.id == pinnedRecipeID })
         }
     }
 
-    private var shouldShowFeaturedRecipes: Bool {
+    private var shouldShowPinnedRecipes: Bool {
         selectedMealTypeFilterID == nil &&
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !featuredRecipes.isEmpty
+        !pinnedRecipes.isEmpty
     }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
             List {
-                if shouldShowFeaturedRecipes {
-                    FeaturedRecipesRow(recipes: featuredRecipes) { recipeID in
+                if shouldShowPinnedRecipes {
+                    PinnedRecipesRow(recipes: pinnedRecipes) { recipeID in
                         navigationPath.append(recipeID)
                     }
                     .listRowSeparator(.hidden)
@@ -283,11 +310,7 @@ struct RecipesView: View {
                 runningImportTask?.cancel()
             }
             .onAppear {
-                refreshFeaturedRecipes()
                 openSelectedRecipeIfNeeded()
-            }
-            .onChange(of: recipes.map(\.id)) { _, _ in
-                refreshFeaturedRecipes()
             }
             .onChange(of: selectedRecipeID) { _, _ in
                 openSelectedRecipeIfNeeded()
@@ -305,7 +328,7 @@ struct RecipesView: View {
                 Picker(selectedMealTypeFilterTitle, selection: $selectedMealTypeFilterID) {
                     Text("All").tag(nil as UUID?)
 
-                    ForEach(mealTypes) { mealType in
+                    ForEach(mealTypes, id: \.id) { mealType in
                         Text(mealType.name).tag(Optional(mealType.id))
                     }
                 }
@@ -358,21 +381,6 @@ struct RecipesView: View {
         navigationPath = NavigationPath()
         navigationPath.append(pendingCreatedRecipeID)
         self.pendingCreatedRecipeID = nil
-    }
-
-    private func refreshFeaturedRecipes() {
-        let availableRecipeIDs = Set(recipes.map(\.id))
-        let retainedRecipeIDs = featuredRecipeIDs.filter(availableRecipeIDs.contains)
-        let retainedRecipeIDSet = Set(retainedRecipeIDs)
-        let availableCandidates = recipes
-            .map(\.id)
-            .filter { !retainedRecipeIDSet.contains($0) }
-            .shuffled()
-        let openSlotCount = max(0, 4 - retainedRecipeIDs.count)
-
-        featuredRecipeIDs = Array(
-            (retainedRecipeIDs + availableCandidates.prefix(openSlotCount)).prefix(4)
-        )
     }
 
     private func importRecipeFromURL() {
@@ -430,6 +438,11 @@ struct RecipesView: View {
 
     private func deleteRecipes(at offsets: IndexSet) {
         let deletedRecipes = offsets.map { filteredRecipes[$0] }
+        let deletedRecipeIDs = Set(deletedRecipes.map(\.id))
+
+        let retainedPinnedRecipeIDs = PinnedRecipeDefaults.recipeIDs(from: pinnedRecipeIDsRaw)
+            .filter { !deletedRecipeIDs.contains($0) }
+        pinnedRecipeIDsRaw = PinnedRecipeDefaults.rawValue(for: retainedPinnedRecipeIDs)
 
         for recipe in deletedRecipes {
             for plannedMeal in recipe.plannedMeals ?? [] {
@@ -441,7 +454,7 @@ struct RecipesView: View {
     }
 }
 
-private struct FeaturedRecipesRow: View {
+private struct PinnedRecipesRow: View {
     let recipes: [Recipe]
     let selectRecipe: (UUID) -> Void
 
@@ -451,29 +464,34 @@ private struct FeaturedRecipesRow: View {
     )
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-            ForEach(recipes) { recipe in
-                Button {
-                    selectRecipe(recipe.id)
-                } label: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        FeaturedRecipeImage(photoData: recipe.photoData)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Pinned Recipes")
+                .font(.headline)
 
-                        Text(recipe.name)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                ForEach(recipes) { recipe in
+                    Button {
+                        selectRecipe(recipe.id)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            PinnedRecipeImage(photoData: recipe.photoData)
+
+                            Text(recipe.name)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 }
 
-private struct FeaturedRecipeImage: View {
+private struct PinnedRecipeImage: View {
     let photoData: Data?
 
     var body: some View {
