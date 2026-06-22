@@ -126,10 +126,16 @@ struct RecipesView: View {
         }
     }
 
+    private var shouldShowFeaturedRecipes: Bool {
+        selectedMealTypeFilterID == nil &&
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !featuredRecipes.isEmpty
+    }
+
     var body: some View {
         NavigationStack(path: $navigationPath) {
             List {
-                if !featuredRecipes.isEmpty {
+                if shouldShowFeaturedRecipes {
                     FeaturedRecipesRow(recipes: featuredRecipes) { recipeID in
                         navigationPath.append(recipeID)
                     }
